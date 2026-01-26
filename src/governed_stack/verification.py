@@ -90,7 +90,10 @@ class InstallationCredential:
 
 
 def get_installed_packages(venv_path: Path) -> dict[str, str]:
-    """Get installed packages from venv."""
+    """Get installed packages from venv.
+
+    Supports both pip-managed and UV-managed venvs.
+    """
     python = venv_path / "bin" / "python"
     if not python.exists():
         python = venv_path / "Scripts" / "python.exe"  # Windows
@@ -98,6 +101,21 @@ def get_installed_packages(venv_path: Path) -> dict[str, str]:
     if not python.exists():
         return {}
 
+    # Try UV first (works for UV-managed venvs without pip)
+    try:
+        result = subprocess.run(
+            ["uv", "pip", "list", "--format=json", "--python", str(python)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode == 0:
+            packages = json.loads(result.stdout)
+            return {p["name"].lower(): p["version"] for p in packages}
+    except (subprocess.TimeoutExpired, json.JSONDecodeError, FileNotFoundError):
+        pass
+
+    # Fallback to pip
     try:
         result = subprocess.run(
             [str(python), "-m", "pip", "list", "--format=json"],

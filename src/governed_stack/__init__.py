@@ -178,6 +178,27 @@ from governed_stack.verification import (
     EnvironmentVerificationPlugin,
 )
 
+# Lock File & Installation Credentials
+from governed_stack.lock_file import (
+    LockFile,
+    ResolvedPackage,
+    generate_lock_file,
+    save_lock_file,
+    load_lock_file,
+    verify_lock_file,
+    compute_said,
+)
+
+from governed_stack.installation_credential import (
+    InstallationCredentialIssuer,
+    InstallationCredentialData,
+    IssuedCredential,
+    create_installation_credential,
+    issue_installation_credential,
+    save_credential,
+    load_credential,
+)
+
 
 def tel_available() -> bool:
     """Check if TEL anchoring is available."""
@@ -245,4 +266,20 @@ __all__ = [
     "InstallationCredential",
     "PackageMismatch",
     "EnvironmentVerificationPlugin",
+    # Lock Files
+    "LockFile",
+    "ResolvedPackage",
+    "generate_lock_file",
+    "save_lock_file",
+    "load_lock_file",
+    "verify_lock_file",
+    "compute_said",
+    # Installation Credentials
+    "InstallationCredentialIssuer",
+    "InstallationCredentialData",
+    "IssuedCredential",
+    "create_installation_credential",
+    "issue_installation_credential",
+    "save_credential",
+    "load_credential",
 ]

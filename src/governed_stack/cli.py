@@ -681,6 +681,46 @@ def cmd_install(args):
         print("Installation successful!")
         if output:
             print(output)
+
+        # ALWAYS issue installation credential - no exceptions
+        # Principle: SIGN EVERYTHING. VERIFY EVERYTHING.
+        from governed_stack.installation_credential import issue_installation_credential
+
+        # Determine actual venv path for credential
+        cred_venv = venv_path or Path(".venv")
+        if not cred_venv.exists():
+            # Fall back to system Python path detection
+            cred_venv = Path(sys.prefix)
+
+        # Credential output path
+        cred_path = Path(args.credential_path) if args.credential_path else None
+
+        print(f"\nIssuing installation credential...")
+
+        # Warn about deprecated issuer flag
+        issuer_aid = getattr(args, 'issuer', None)
+        if issuer_aid:
+            print("  WARNING: --issuer is deprecated. Credential will NOT be TEL-anchored.", file=sys.stderr)
+            print("  Set up KERI infrastructure for verifiable credentials.", file=sys.stderr)
+
+        try:
+            cred, lock_file = issue_installation_credential(
+                stack_said=stack.said,
+                venv_path=cred_venv,
+                output_path=cred_path,
+                issuer_aid=issuer_aid,
+            )
+            print(f"  Lock file SAID: {lock_file.said}")
+            print(f"  Credential SAID: {cred.said}")
+            print(f"  TEL-anchored: {cred.tel_anchored}")
+            print(f"  Packages attested: {len(lock_file.packages)}")
+            cred_output = cred_path or Path(".governed/installation.json")
+            print(f"  Saved to: {cred_output}")
+        except Exception as e:
+            # Credential issuance failure IS installation failure
+            print(f"FATAL: Credential issuance failed: {e}", file=sys.stderr)
+            print("Installation cannot complete without attestation.", file=sys.stderr)
+            return 1
     else:
         print(f"Installation failed:\n{output}", file=sys.stderr)
 
@@ -741,10 +781,11 @@ def cmd_verify(args):
     credential_path = Path(args.credential) if args.credential else None
     venv_path = Path(args.venv) if args.venv else None
 
+    # Always strict. Extra packages are a supply chain attack vector.
     result = verify_environment(
         credential_path=credential_path,
         venv_path=venv_path,
-        strict=args.strict,
+        strict=True,
     )
 
     # Print results
@@ -848,6 +889,16 @@ def main():
         metavar="PATH",
         help="Create venv before install (default: .venv). Uses Python version from stack.",
     )
+    p_install.add_argument(
+        "--credential-path",
+        metavar="PATH",
+        help="Path for credential output (default: .governed/installation.json)",
+    )
+    p_install.add_argument(
+        "--issuer",
+        metavar="AID",
+        help="(DEPRECATED) Issuer AID for credential. Use KERI session for TEL-anchored credentials.",
+    )
     p_install.set_defaults(func=cmd_install)
 
     # generate
@@ -866,8 +917,8 @@ def main():
     p_verify = subparsers.add_parser("verify", help="Verify installed environment matches credential")
     p_verify.add_argument("--credential", "-c", help="Path to installation credential (default: .governed/installation.json)")
     p_verify.add_argument("--venv", "-v", help="Path to venv (default: from credential or .venv)")
-    p_verify.add_argument("--strict", action="store_true", default=True, help="Fail on extra packages (default)")
-    p_verify.add_argument("--no-strict", action="store_false", dest="strict", help="Allow extra packages")
+    # No --no-strict option. Extra packages are a supply chain attack vector.
+    # SIGN EVERYTHING. VERIFY EVERYTHING. NO EXCEPTIONS.
     p_verify.set_defaults(func=cmd_verify)
 
     args = parser.parse_args()
