@@ -279,7 +279,30 @@ verified, said, constraints = sm.verify_pyproject(pyproject_content)
 verified, said, constraints = sm.verify_requirements(requirements_content)
 ```
 
-## KERI Principles Applied
+## Inspired By
+
+This project synthesizes ideas from:
+
+### KERI (Key Event Receipt Infrastructure) by Samuel M. Smith
+
+- Self-certifying identifiers, SAIDs, TEL anchoring
+- https://keri.one
+
+### Transit by Cognitect (Rich Hickey et al.)
+
+- Handler-based type extensibility
+- Ground types vs extension types
+- "No opaque blobs" principle
+- Self-describing prefixes
+- https://github.com/cognitect/transit-format
+
+**Key Insight:** Transit solved semantic type preservation across language
+boundaries. Governed Stack solves authorization preservation across
+environment boundaries. Both reject central registries as trust anchors.
+
+## Design Principles
+
+### KERI Principles
 
 This package follows Samuel Smith's KERI design principles:
 
@@ -288,6 +311,66 @@ This package follows Samuel Smith's KERI design principles:
 3. **Append-Only History** - Changes create new versions, never delete
 4. **Deterministic Serialization** - JSON with sorted keys ensures reproducible SAIDs
 5. **Blake3 for Performance** - Uses keripy's Diger with Blake3_256
+
+### Transit Patterns
+
+Handler-based extensibility inspired by Transit:
+
+1. **Ground Types** - Built-in types with well-known verification (python, package, system, binary)
+2. **Extension Types** - User-defined types that compose on ground types
+3. **No Opaque Blobs** - Every constraint must decompose to verifiable primitives
+4. **Self-Describing Codes** - CESR-aligned type codes embedded in encoded constraints
+5. **Forward Compatibility** - Unknown types preserved for roundtrip serialization
+
+## Extension Handlers
+
+Register custom constraint handlers for specialized verification:
+
+```python
+from governed_stack import ConstraintHandler, register_handler, VerificationResult
+
+class DockerImageHandler(ConstraintHandler):
+    @property
+    def code(self) -> str:
+        return "D"  # Single-char code
+
+    @property
+    def type_name(self) -> str:
+        return "docker-image"
+
+    def serialize(self, name: str, spec: str) -> bytes:
+        # Deterministic serialization for SAID computation
+        import json
+        data = {"handler": self.code, "type": self.type_name, "name": name, "spec": spec}
+        return json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+
+    def verify(self, name: str, spec: str) -> VerificationResult:
+        # Check if Docker image exists with correct tag
+        import subprocess
+        result = subprocess.run(["docker", "images", "-q", f"{name}:{spec}"], capture_output=True)
+        found = bool(result.stdout.strip())
+        return VerificationResult(
+            verified=found,
+            constraint_said=self.compute_said(name, spec),
+            actual_value=spec if found else "",
+            expected_spec=spec,
+            message="" if found else f"Docker image {name}:{spec} not found",
+            handler_code=self.code,
+        )
+
+# Register the handler
+register_handler("docker-image", DockerImageHandler())
+
+# Now use it in stack definitions
+stack = sm.define_stack(
+    name="containerized-app",
+    controller_aid="BMASTER...",
+    constraints={
+        "python": ">=3.12",
+        "docker-image:myapp": "latest",  # Uses DockerImageHandler
+    },
+)
+```
 
 ## Requirements
 

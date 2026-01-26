@@ -10,6 +10,14 @@ Uses keripy's Diger for SAID computation following Samuel Smith's principles:
 - Blake3 for performance
 - Controller AIDs for authorization
 
+Handler system inspired by Cognitect's Transit format:
+- Handler-based type extensibility
+- Ground types vs extension types
+- "No opaque blobs" decomposition principle
+
+Credit: Transit format by Cognitect (Rich Hickey et al.)
+        https://github.com/cognitect/transit-format
+
 No asyncio. No callbacks. Pure functional where possible.
 """
 
@@ -27,6 +35,14 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 from keri.core import coring
+
+# Handler imports - Transit-inspired type system
+from governed_stack.handlers import (
+    ConstraintHandler,
+    VerificationResult,
+    get_handler,
+    HANDLERS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -590,12 +606,17 @@ class StackManager:
                 rationale=f"Updated {constraint_name}: {change_summary}",
             )
 
-    def check_compliance(self, stack_said: str) -> ComplianceResult:
+    def check_compliance(
+        self,
+        stack_said: str,
+        use_handlers: bool = True,
+    ) -> ComplianceResult:
         """
         Check if current environment complies with stack constraints.
 
         Args:
             stack_said: Stack SAID to check against
+            use_handlers: Use Transit-inspired handler system (default: True)
 
         Returns:
             ComplianceResult with detailed check info
@@ -616,22 +637,27 @@ class StackManager:
         outdated: List[str] = []
 
         for name, constraint in stack.constraints.items():
-            if constraint.constraint_type == ConstraintType.PYTHON:
-                check = self._check_python(constraint)
-            elif constraint.constraint_type == ConstraintType.PACKAGE:
-                check = self._check_package(constraint)
-            elif constraint.constraint_type == ConstraintType.SYSTEM:
-                check = self._check_system(constraint)
-            elif constraint.constraint_type == ConstraintType.BINARY:
-                check = self._check_binary(constraint)
+            if use_handlers:
+                # Transit-inspired: delegate to type handlers
+                check = self._check_with_handler(constraint)
             else:
-                check = ConstraintCheck(
-                    name=name,
-                    required=constraint.version_spec,
-                    installed=None,
-                    compliant=False,
-                    error=f"Unknown type: {constraint.constraint_type}",
-                )
+                # Legacy path (kept for backward compatibility)
+                if constraint.constraint_type == ConstraintType.PYTHON:
+                    check = self._check_python(constraint)
+                elif constraint.constraint_type == ConstraintType.PACKAGE:
+                    check = self._check_package(constraint)
+                elif constraint.constraint_type == ConstraintType.SYSTEM:
+                    check = self._check_system(constraint)
+                elif constraint.constraint_type == ConstraintType.BINARY:
+                    check = self._check_binary(constraint)
+                else:
+                    check = ConstraintCheck(
+                        name=name,
+                        required=constraint.version_spec,
+                        installed=None,
+                        compliant=False,
+                        error=f"Unknown type: {constraint.constraint_type}",
+                    )
 
             checks[name] = check
 
@@ -648,6 +674,40 @@ class StackManager:
             outdated=outdated,
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
+
+    def _check_with_handler(self, constraint: Constraint) -> ConstraintCheck:
+        """
+        Check constraint using Transit-inspired handler system.
+
+        Delegates to the appropriate handler based on constraint type.
+        Handlers are registered globally and can be extended.
+
+        Args:
+            constraint: Constraint to verify
+
+        Returns:
+            ConstraintCheck result
+        """
+        try:
+            handler = get_handler(constraint.constraint_type.value)
+            result = handler.verify(constraint.name, constraint.version_spec)
+
+            return ConstraintCheck(
+                name=constraint.name,
+                required=constraint.version_spec,
+                installed=result.actual_value if result.actual_value else None,
+                compliant=result.verified,
+                error=result.message if not result.verified else None,
+            )
+        except ValueError as e:
+            # No handler registered for this type
+            return ConstraintCheck(
+                name=constraint.name,
+                required=constraint.version_spec,
+                installed=None,
+                compliant=False,
+                error=f"No handler for type: {constraint.constraint_type}",
+            )
 
     def _check_python(self, constraint: Constraint) -> ConstraintCheck:
         """Check Python version."""
