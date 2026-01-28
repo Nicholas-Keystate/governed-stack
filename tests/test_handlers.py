@@ -12,7 +12,7 @@ Tests for:
 
 import pytest
 
-from governed_stack.handlers import (
+from keri_sec.handlers import (
     ConstraintHandler,
     VerificationResult,
     PythonVersionHandler,
@@ -24,8 +24,8 @@ from governed_stack.handlers import (
     list_handlers,
     HANDLERS,
 )
-from governed_stack.cache import ConstraintCache, SAIDCache, BASE_CHARS
-from governed_stack.codes import (
+from keri_sec.cache import ConstraintCache, SAIDCache, BASE_CHARS
+from keri_sec.codes import (
     ConstraintCode,
     CONSTRAINT_CODES,
     encode_constraint,
@@ -34,14 +34,14 @@ from governed_stack.codes import (
     get_code,
     get_type_name,
 )
-from governed_stack.extensions import (
+from keri_sec.extensions import (
     UnknownConstraint,
     ExtensionConstraint,
     create_composite_constraint,
     is_extension,
     parse_unknown,
 )
-from governed_stack.streaming import (
+from keri_sec.streaming import (
     OutputMode,
     MIME_TYPES,
     stream_constraints,
@@ -379,7 +379,7 @@ class TestStreaming:
         """Should define MIME types."""
         assert "json" in MIME_TYPES
         assert "cesr" in MIME_TYPES
-        assert "governed-stack" in MIME_TYPES["json"]
+        assert "keri-sec" in MIME_TYPES["json"]
 
     def test_stream_constraints_verbose(self):
         """Should stream in verbose mode."""
@@ -388,7 +388,7 @@ class TestStreaming:
             {"name": "hio", "spec": ">=0.6.14"},
         ]
 
-        from governed_stack.streaming import StreamConfig
+        from keri_sec.streaming import StreamConfig
         config = StreamConfig(mode=OutputMode.VERBOSE)
 
         chunks = list(stream_constraints(constraints, config))
@@ -403,7 +403,7 @@ class TestStreaming:
             {"name": "keri", "spec": ">=1.2.0"},
         ]
 
-        from governed_stack.streaming import StreamConfig
+        from keri_sec.streaming import StreamConfig
         config = StreamConfig(mode=OutputMode.COMPACT)
 
         chunks = list(stream_constraints(constraints, config))

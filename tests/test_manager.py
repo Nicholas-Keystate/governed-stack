@@ -5,7 +5,7 @@ import pytest
 import tempfile
 from pathlib import Path
 
-from governed_stack import (
+from keri_sec import (
     StackManager,
     ConstraintType,
     KERI_PRODUCTION_STACK,

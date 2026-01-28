@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 """
-TEL Anchoring for Governed Stacks.
+TEL Anchoring for keri-secs.
 
 Provides cryptographic attestation of stack definitions via KERI TEL.
 Without TEL anchoring, stack SAIDs are just computed hashes.
@@ -21,7 +21,7 @@ Requirements:
 - Schema SAIDs registered
 
 Usage:
-    from governed_stack.tel_anchoring import StackCredentialIssuer
+    from keri_sec.tel_anchoring import StackCredentialIssuer
 
     issuer = StackCredentialIssuer(hab=master_hab, registry=registry)
     cred_said = issuer.issue_stack_credential(stack)
@@ -96,9 +96,9 @@ def compute_schema_said(schema_path: Path) -> str:
 
 class StackCredentialIssuer:
     """
-    Issues TEL-anchored credentials for governed stacks.
+    Issues TEL-anchored credentials for keri-sec stacks.
 
-    This connects governed-stack to real KERI infrastructure.
+    This connects keri-sec to real KERI infrastructure.
 
     When ai-orchestrator's CredentialService is available, delegates to it
     for proper WAL-backed, metric-tracked credential issuance.

@@ -339,7 +339,7 @@ def verify_or_fail(
 
         error_lines.extend([
             "",
-            "Run: governed-stack install <stack-said> --venv --credential",
+            "Run: keri-sec install <stack-said> --venv --credential",
         ])
 
         raise EnvironmentError("\n".join(error_lines))
@@ -362,7 +362,7 @@ class EnvironmentVerificationPlugin:
 
 
 # For use in conftest.py:
-# from governed_stack.verification import EnvironmentVerificationPlugin
+# from keri_sec.verification import EnvironmentVerificationPlugin
 # def pytest_configure(config):
 #     plugin = EnvironmentVerificationPlugin()
 #     plugin.pytest_configure(config)

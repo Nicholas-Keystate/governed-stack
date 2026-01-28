@@ -1,0 +1,121 @@
+{
+  "$id": "EAlgorithm_DAID_Schema_______________________",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Algorithm DAID Credential",
+  "description": "ACDC schema for governed cryptographic algorithms (GAIDs)",
+  "type": "object",
+  "credentialType": "AlgorithmDAIDCredential",
+  "version": "1.0.0",
+  "properties": {
+    "v": {
+      "type": "string",
+      "description": "Version string"
+    },
+    "d": {
+      "type": "string",
+      "description": "SAID of this credential (DAID identifier)"
+    },
+    "i": {
+      "type": "string",
+      "description": "Issuer AID (algorithm governance body)"
+    },
+    "ri": {
+      "type": "string",
+      "description": "Registry identifier for TEL"
+    },
+    "s": {
+      "type": "string",
+      "description": "Schema SAID",
+      "const": "EAlgorithm_DAID_Schema_______________________"
+    },
+    "a": {
+      "type": "object",
+      "description": "Algorithm attributes",
+      "properties": {
+        "d": {
+          "type": "string",
+          "description": "SAID of attributes block"
+        },
+        "dt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Issuance datetime"
+        },
+        "name": {
+          "type": "string",
+          "description": "Algorithm canonical name (e.g., 'blake3', 'sha3-256', 'ed25519')"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["hash", "signature", "encryption", "kdf", "mac"],
+          "description": "Algorithm category"
+        },
+        "cesrCode": {
+          "type": "string",
+          "description": "CESR derivation code if applicable"
+        },
+        "specSaid": {
+          "type": "string",
+          "description": "SAID of algorithm specification document"
+        },
+        "implementationSaid": {
+          "type": "string",
+          "description": "SAID of reference implementation"
+        },
+        "version": {
+          "type": "string",
+          "description": "Algorithm version (semver)"
+        },
+        "securityLevel": {
+          "type": "integer",
+          "description": "Security level in bits"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "deprecated", "superseded", "revoked"],
+          "description": "Current algorithm status"
+        },
+        "deprecationNotice": {
+          "type": "object",
+          "description": "Deprecation details if deprecated",
+          "properties": {
+            "reason": {"type": "string"},
+            "successor": {"type": "string", "description": "DAID of replacement algorithm"},
+            "deadline": {"type": "string", "format": "date-time"}
+          }
+        }
+      },
+      "required": ["d", "dt", "name", "category", "version", "status"]
+    },
+    "e": {
+      "type": "object",
+      "description": "Edges to related algorithms",
+      "properties": {
+        "previousVersion": {
+          "type": "object",
+          "description": "Edge to previous version (rotation chain)",
+          "properties": {
+            "d": {"type": "string"},
+            "s": {"type": "string", "const": "EAlgorithm_DAID_Schema_______________________"}
+          }
+        },
+        "successor": {
+          "type": "object",
+          "description": "Edge to successor algorithm (if deprecated)",
+          "properties": {
+            "d": {"type": "string"},
+            "s": {"type": "string", "const": "EAlgorithm_DAID_Schema_______________________"}
+          }
+        },
+        "specification": {
+          "type": "object",
+          "description": "Edge to specification document SAID",
+          "properties": {
+            "d": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "required": ["v", "d", "i", "ri", "s", "a"]
+}

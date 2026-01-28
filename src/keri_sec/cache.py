@@ -21,7 +21,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-from governed_stack.handlers import VerificationResult
+from keri_sec.handlers import VerificationResult
 
 
 # Base for 44-character encoding (0-9, A-Z, a-z minus some)

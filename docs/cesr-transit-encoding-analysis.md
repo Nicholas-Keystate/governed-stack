@@ -204,7 +204,7 @@ The magic is that **handler and schema can share the same SAID** if the handler 
 
 ## Practical Implementation
 
-For governed-stack and ai-orchestrator:
+For keri-sec and ai-orchestrator:
 
 ```python
 # 1. Handler computes schema-equivalent SAID

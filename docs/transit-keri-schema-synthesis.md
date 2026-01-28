@@ -168,11 +168,11 @@ KERI:
 
 ---
 
-## Part 5: Implications for governed-stack
+## Part 5: Implications for keri-sec
 
 ### Current Implementation
 
-governed-stack uses Transit pattern for **ground types**:
+keri-sec uses Transit pattern for **ground types**:
 
 ```python
 class PackageHandler(ConstraintHandler):
@@ -322,7 +322,7 @@ Both Transit and KERI reject central schema registries. They just encode type se
 
 **Neither requires calling home to understand data.**
 
-For governed-stack, the hybrid approach is optimal:
+For keri-sec, the hybrid approach is optimal:
 - Ground types use handlers (Transit pattern)
 - Extensions can link schemas (KERI pattern)
 - Stack SAIDs provide content-addressing (both patterns)

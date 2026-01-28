@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 """
-Governed Stack - KERI-Governed Dependency Management
+keri-sec - KERI-Governed Dependency Management
 
 HYPER-EXPERIMENTAL: This package is in early development.
 API may change without notice. Use at your own risk.
@@ -13,7 +13,7 @@ Credit: https://github.com/cognitect/transit-format
 
 Key Insight:
     UV/pip are EXECUTION tools - they install packages fast.
-    Governed Stack is the GOVERNANCE layer - it answers:
+    keri-sec is the GOVERNANCE layer - it answers:
       - WHY is this version required?
       - WHO approved it?
       - WHEN can we change it?
@@ -41,12 +41,12 @@ Architecture:
     └─────────────────────────────────────────────────────────┘
 
 Usage:
-    from governed_stack import StackManager, KERI_PRODUCTION_STACK
+    from keri_sec import StackManager, KERI_PRODUCTION_STACK
 
     # Create manager
     sm = StackManager()
 
-    # Define a governed stack
+    # Define a keri-sec stack
     stack = sm.define_stack(
         name="my-project",
         controller_aid="BMASTER_AID...",
@@ -63,7 +63,7 @@ Usage:
     toml = sm.generate_pyproject(stack.said)
 
 Handler System (Transit-inspired):
-    from governed_stack import get_handler, register_handler, ConstraintHandler
+    from keri_sec import get_handler, register_handler, ConstraintHandler
 
     # Get existing handler
     python_handler = get_handler("python")
@@ -78,12 +78,12 @@ __version__ = "0.1.0"
 
 # KERI Package Signing - Publisher identity for verification
 # To verify this package:
-#   1. Download: pip download governed-stack --no-deps
-#   2. Get signature: curl -O https://github.com/WebOfTrust/governed-stack/releases/download/v0.1.0/governed_stack-0.1.0.sig.json
-#   3. Verify: keri-git-said codesign verify governed_stack-0.1.0-py3-none-any.whl --credential governed_stack-0.1.0.sig.json
+#   1. Download: pip download keri-sec --no-deps
+#   2. Get signature: curl -O https://github.com/WebOfTrust/keri-sec/releases/download/v0.1.0/keri_sec-0.1.0.sig.json
+#   3. Verify: keri-git-said codesign verify keri_sec-0.1.0-py3-none-any.whl --credential keri_sec-0.1.0.sig.json
 PUBLISHER_AID = "EFyO5GKXB6XgzhuvRFkOojvQOPDsa3_IndeXFhZcYnjL"
 
-from governed_stack.manager import (
+from keri_sec.manager import (
     StackManager,
     ConstraintType,
     Constraint,
@@ -94,7 +94,7 @@ from governed_stack.manager import (
     reset_stack_manager,
 )
 
-from governed_stack.stacks import (
+from keri_sec.stacks import (
     KERI_PRODUCTION_STACK,
     KERI_DEV_STACK,
     KGQL_STACK,
@@ -104,7 +104,7 @@ from governed_stack.stacks import (
 )
 
 # Transit-inspired handler system
-from governed_stack.handlers import (
+from keri_sec.handlers import (
     ConstraintHandler,
     VerificationResult,
     PythonVersionHandler,
@@ -118,13 +118,13 @@ from governed_stack.handlers import (
 )
 
 # Caching system
-from governed_stack.cache import (
+from keri_sec.cache import (
     ConstraintCache,
     SAIDCache,
 )
 
 # Constraint type codes
-from governed_stack.codes import (
+from keri_sec.codes import (
     ConstraintCode,
     CONSTRAINT_CODES,
     encode_constraint,
@@ -133,7 +133,7 @@ from governed_stack.codes import (
 )
 
 # Extension support
-from governed_stack.extensions import (
+from keri_sec.extensions import (
     UnknownConstraint,
     ExtensionConstraint,
     create_composite_constraint,
@@ -141,7 +141,7 @@ from governed_stack.extensions import (
 )
 
 # Streaming
-from governed_stack.streaming import (
+from keri_sec.streaming import (
     OutputMode,
     MIME_TYPES,
     stream_constraints,
@@ -150,7 +150,7 @@ from governed_stack.streaming import (
 
 # TEL Anchoring (optional - requires KERI infrastructure)
 try:
-    from governed_stack.tel_anchoring import (
+    from keri_sec.tel_anchoring import (
         StackCredentialIssuer,
         CredentialIssuanceResult,
         get_issuer_from_session,
@@ -169,7 +169,7 @@ except ImportError:
     WORKSPACE_SCHEMA_SAID = None
 
 # Environment Verification
-from governed_stack.verification import (
+from keri_sec.verification import (
     verify_environment,
     verify_or_fail,
     VerificationResult as EnvVerificationResult,
@@ -179,7 +179,7 @@ from governed_stack.verification import (
 )
 
 # Lock File & Installation Credentials
-from governed_stack.lock_file import (
+from keri_sec.lock_file import (
     LockFile,
     ResolvedPackage,
     generate_lock_file,
@@ -189,7 +189,7 @@ from governed_stack.lock_file import (
     compute_said,
 )
 
-from governed_stack.installation_credential import (
+from keri_sec.installation_credential import (
     InstallationCredentialIssuer,
     InstallationCredentialData,
     IssuedCredential,
@@ -197,6 +197,61 @@ from governed_stack.installation_credential import (
     issue_installation_credential,
     save_credential,
     load_credential,
+)
+
+# Algorithm DAIDs (GAID - Governed Algorithm Identifiers)
+from keri_sec.algorithms import (
+    AlgorithmCategory,
+    AlgorithmDAID,
+    AlgorithmDAIDRegistry,
+    AlgorithmStatus,
+    AlgorithmVersion,
+    get_algorithm_daid_registry,
+    reset_algorithm_daid_registry,
+)
+
+# Schema DAIDs (Governed ACDC Schemas)
+from keri_sec.schemas import (
+    SchemaDAID,
+    SchemaDAIDRegistry,
+    SchemaStatus,
+    SchemaVersion,
+    get_schema_registry,
+    reset_schema_registry,
+)
+
+# DAID Verification (integrates Schema and Algorithm DAIDs)
+from keri_sec.daid_verification import (
+    DAIDVerifier,
+    SchemaVerificationResult,
+    AlgorithmVerificationResult,
+    CredentialVerificationResult,
+    verify_schema,
+    check_algorithm,
+    get_schema_said_for_issuance,
+)
+
+# Permission Parser (Claude Code settings analysis)
+from keri_sec.permissions import (
+    PermissionCategory,
+    PermissionClass,
+    PermissionEntry,
+    PermissionParser,
+    PermissionPolicy,
+    PermissionAnalysis,
+    ConsolidationSuggestion,
+    PatternType,
+)
+
+# Package DAIDs (Supply Chain Security)
+from keri_sec.packages import (
+    PackageDAID,
+    PackageDAIDRegistry,
+    PackageStatus,
+    PackageVersion,
+    VerificationResult as PackageVerificationResult,
+    get_package_daid_registry,
+    reset_package_daid_registry,
 )
 
 
@@ -282,4 +337,44 @@ __all__ = [
     "issue_installation_credential",
     "save_credential",
     "load_credential",
+    # Algorithm DAIDs (GAID)
+    "AlgorithmCategory",
+    "AlgorithmDAID",
+    "AlgorithmDAIDRegistry",
+    "AlgorithmStatus",
+    "AlgorithmVersion",
+    "get_algorithm_daid_registry",
+    "reset_algorithm_daid_registry",
+    # Schema DAIDs
+    "SchemaDAID",
+    "SchemaDAIDRegistry",
+    "SchemaStatus",
+    "SchemaVersion",
+    "get_schema_registry",
+    "reset_schema_registry",
+    # DAID Verification
+    "DAIDVerifier",
+    "SchemaVerificationResult",
+    "AlgorithmVerificationResult",
+    "CredentialVerificationResult",
+    "verify_schema",
+    "check_algorithm",
+    "get_schema_said_for_issuance",
+    # Permission Parser
+    "PermissionCategory",
+    "PermissionClass",
+    "PermissionEntry",
+    "PermissionParser",
+    "PermissionPolicy",
+    "PermissionAnalysis",
+    "ConsolidationSuggestion",
+    "PatternType",
+    # Package DAIDs (Supply Chain Security)
+    "PackageDAID",
+    "PackageDAIDRegistry",
+    "PackageStatus",
+    "PackageVersion",
+    "PackageVerificationResult",
+    "get_package_daid_registry",
+    "reset_package_daid_registry",
 ]

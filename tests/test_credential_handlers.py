@@ -8,7 +8,7 @@ or complement JSON Schema validation for internal credentials.
 
 import pytest
 
-from governed_stack.credential_handlers import (
+from keri_sec.credential_handlers import (
     CredentialHandler,
     CredentialValidationResult,
     SessionCredentialHandler,

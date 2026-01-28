@@ -37,9 +37,9 @@ class OutputMode(Enum):
 
 # MIME types for governed constraint formats
 MIME_TYPES: Dict[str, str] = {
-    "json": "application/governed-stack+json",
-    "cesr": "application/governed-stack+cesr",
-    "toml": "application/governed-stack+toml",
+    "json": "application/keri-sec+json",
+    "cesr": "application/keri-sec+cesr",
+    "toml": "application/keri-sec+toml",
 }
 
 

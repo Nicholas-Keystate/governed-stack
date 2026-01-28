@@ -127,7 +127,7 @@ def measure_execution(func: Callable, *args, **kwargs) -> tuple[Any, float, floa
 
 
 # =============================================================================
-# Governed-Stack Dogfooding Tests
+# keri-sec Dogfooding Tests
 # =============================================================================
 
 class TestHandlerVsSchemaPerformance:
@@ -135,7 +135,7 @@ class TestHandlerVsSchemaPerformance:
 
     def test_handler_validation_performance(self):
         """Measure handler-based validation performance."""
-        from governed_stack.credential_handlers import (
+        from keri_sec.credential_handlers import (
             SessionCredentialHandler,
             validate_credential_fast,
         )
@@ -191,7 +191,7 @@ class TestHandlerVsSchemaPerformance:
 
     def test_fast_validation_dispatch(self):
         """Test fast validation dispatch performance."""
-        from governed_stack.credential_handlers import validate_credential_fast
+        from keri_sec.credential_handlers import validate_credential_fast
 
         # Known type (has handler)
         known_credential = {
@@ -239,8 +239,8 @@ class TestSemanticCompression:
 
     def test_json_vs_compact_encoding(self):
         """Compare JSON verbose vs compact encoding for token efficiency."""
-        from governed_stack.handlers import get_handler, VerificationResult
-        from governed_stack.streaming import OutputMode, MIME_TYPES
+        from keri_sec.handlers import get_handler, VerificationResult
+        from keri_sec.streaming import OutputMode, MIME_TYPES
 
         # Sample stack profile
         stack_data = {
@@ -301,7 +301,7 @@ class TestSemanticCompression:
 
     def test_handler_implicit_schema_size(self):
         """Compare handler code size vs equivalent JSON Schema."""
-        from governed_stack.credential_handlers import (
+        from keri_sec.credential_handlers import (
             SessionCredentialHandler,
             handler_to_json_schema,
         )
@@ -337,7 +337,7 @@ class TestConstraintVerificationMetrics:
 
     def test_handler_verification_accuracy(self):
         """Verify handlers produce correct results across edge cases."""
-        from governed_stack.handlers import PackageHandler, PythonVersionHandler
+        from keri_sec.handlers import PackageHandler, PythonVersionHandler
 
         test_cases = [
             # (handler_class, name, spec, should_be_format_valid)
@@ -387,7 +387,7 @@ class TestCacheEfficiency:
 
     def test_44_base_cache_performance(self):
         """Test Transit-inspired 44-base cache for SAIDs."""
-        from governed_stack.cache import ConstraintCache
+        from keri_sec.cache import ConstraintCache
 
         cache = ConstraintCache()
 
@@ -434,7 +434,7 @@ class TestEmergentImplications:
 
     def test_handler_edge_cases(self):
         """Test edge cases that might reveal emergent issues."""
-        from governed_stack.credential_handlers import (
+        from keri_sec.credential_handlers import (
             SessionCredentialHandler,
             TurnCredentialHandler,
         )
@@ -536,7 +536,7 @@ class TestDogfoodSummary:
     """Generate summary report of all dogfooding metrics."""
 
     def test_generate_summary_report(self):
-        """Generate comprehensive summary of governed-stack dogfooding."""
+        """Generate comprehensive summary of keri-sec dogfooding."""
 
         # This test runs last and summarizes findings
         summary = """

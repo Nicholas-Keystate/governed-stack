@@ -1,19 +1,19 @@
 #!/usr/bin/env python
 # -*- encoding: utf-8 -*-
 """
-Governed Stack CLI
+keri-sec CLI
 
 Cryptographic dependency governance with KERI SAIDs.
 
 Commands:
-    governed-stack init [--controller <aid>]     Initialize from pyproject.toml
-    governed-stack check [<said>]                Check compliance
-    governed-stack diff <path>                   Compare with another project
-    governed-stack sync                          Update pyproject.toml governance
-    governed-stack define <name> --controller <aid> [--stack <preset>]
-    governed-stack install <said> [--uv|--pip]
-    governed-stack generate <said> [--pyproject|--requirements]
-    governed-stack list
+    keri-sec init [--controller <aid>]     Initialize from pyproject.toml
+    keri-sec check [<said>]                Check compliance
+    keri-sec diff <path>                   Compare with another project
+    keri-sec sync                          Update pyproject.toml governance
+    keri-sec define <name> --controller <aid> [--stack <preset>]
+    keri-sec install <said> [--uv|--pip]
+    keri-sec generate <said> [--pyproject|--requirements]
+    keri-sec list
 """
 
 import argparse
@@ -23,7 +23,7 @@ import sys
 from pathlib import Path
 from typing import Optional, Dict, List, Tuple
 
-from governed_stack import (
+from keri_sec import (
     StackManager,
     get_stack_manager,
     KERI_PRODUCTION_STACK,
@@ -32,6 +32,10 @@ from governed_stack import (
     AI_ORCHESTRATOR_STACK,
     WITNESS_STACK,
     MINIMAL_STACK,
+)
+from keri_sec.permissions import (
+    PermissionParser,
+    PermissionPolicy,
 )
 
 
@@ -100,7 +104,7 @@ def parse_pyproject(path: Path) -> Tuple[Optional[str], Dict[str, str], Dict[str
                         break
 
         # Governance section
-        if line == "[tool.governed-stack]":
+        if line == "[tool.keri-sec]":
             in_governance = True
             continue
         if in_governance:
@@ -122,7 +126,7 @@ def cmd_init(args):
 
     if not pyproject.exists():
         print(f"No pyproject.toml found at {pyproject}", file=sys.stderr)
-        print("\nCreate one first, then run: governed-stack init")
+        print("\nCreate one first, then run: keri-sec init")
         return 1
 
     project_name, constraints, existing = parse_pyproject(pyproject)
@@ -131,7 +135,7 @@ def cmd_init(args):
         print(f"Project already governed!")
         print(f"  Stack SAID: {existing['stack_said']}")
         print(f"  Owner: {existing.get('owner_baid', 'unknown')}")
-        print("\nTo update, use: governed-stack sync")
+        print("\nTo update, use: keri-sec sync")
         return 0
 
     if not constraints:
@@ -161,8 +165,8 @@ def cmd_init(args):
 
     print()
     print("Next steps:")
-    print("  1. Run: governed-stack sync    # Add governance to pyproject.toml")
-    print("  2. Run: governed-stack check   # Verify compliance")
+    print("  1. Run: keri-sec sync    # Add governance to pyproject.toml")
+    print("  2. Run: keri-sec check   # Verify compliance")
 
     return 0
 
@@ -427,7 +431,7 @@ def cmd_workspace(args):
                         line = f'requires-python = "{unified["python"]}"'
 
                     # Skip old governance section
-                    if line.strip() == "[tool.governed-stack]":
+                    if line.strip() == "[tool.keri-sec]":
                         skip_governance = True
                         continue
                     if skip_governance:
@@ -444,7 +448,7 @@ def cmd_workspace(args):
 
                 # Add governance section
                 governance_section = f"""
-[tool.governed-stack]
+[tool.keri-sec]
 stack_said = "{project_stack.said}"
 owner_baid = "{controller}"
 workspace_said = "{workspace_stack.said}"
@@ -459,7 +463,7 @@ workspace_said = "{workspace_stack.said}"
             if args.tel:
                 print("\nIssuing TEL-anchored credentials...")
                 try:
-                    from governed_stack import tel_available, get_issuer_from_session
+                    from keri_sec import tel_available, get_issuer_from_session
 
                     if not tel_available():
                         print("  ⚠ TEL anchoring not available (missing KERI dependencies)")
@@ -524,13 +528,13 @@ def cmd_sync(args):
     # Read current content
     content = pyproject.read_text()
 
-    # Remove existing [tool.governed-stack] section if present
+    # Remove existing [tool.keri-sec] section if present
     lines = content.split("\n")
     new_lines = []
     skip_section = False
 
     for line in lines:
-        if line.strip() == "[tool.governed-stack]":
+        if line.strip() == "[tool.keri-sec]":
             skip_section = True
             continue
         if skip_section and line.strip().startswith("["):
@@ -544,7 +548,7 @@ def cmd_sync(args):
 
     # Add governance section
     governance_section = f"""
-[tool.governed-stack]
+[tool.keri-sec]
 stack_said = "{stack.said}"
 owner_baid = "{controller}"
 """
@@ -563,7 +567,7 @@ owner_baid = "{controller}"
 
 
 def cmd_define(args):
-    """Define a new governed stack."""
+    """Define a new keri-sec stack."""
     sm = get_stack_manager()
 
     # Get constraints from preset or JSON file
@@ -610,7 +614,7 @@ def cmd_check(args):
             if governance.get("stack_said"):
                 args.said = governance["stack_said"]
             else:
-                print("No stack_said in pyproject.toml. Run: governed-stack init", file=sys.stderr)
+                print("No stack_said in pyproject.toml. Run: keri-sec init", file=sys.stderr)
                 return 1
         else:
             print("No pyproject.toml found. Specify a stack SAID or name.", file=sys.stderr)
@@ -684,7 +688,7 @@ def cmd_install(args):
 
         # ALWAYS issue installation credential - no exceptions
         # Principle: SIGN EVERYTHING. VERIFY EVERYTHING.
-        from governed_stack.installation_credential import issue_installation_credential
+        from keri_sec.installation_credential import issue_installation_credential
 
         # Determine actual venv path for credential
         cred_venv = venv_path or Path(".venv")
@@ -759,7 +763,7 @@ def cmd_list(args):
     if not stacks:
         print("No stacks defined.")
         print("\nDefine a stack with:")
-        print("  governed-stack define my-project --controller <AID> --stack keri")
+        print("  keri-sec define my-project --controller <AID> --stack keri")
         return 0
 
     print(f"Defined stacks ({len(stacks)}):\n")
@@ -776,7 +780,7 @@ def cmd_list(args):
 def cmd_verify(args):
     """Verify installed environment matches credential."""
     from pathlib import Path
-    from governed_stack.verification import verify_environment
+    from keri_sec.verification import verify_environment
 
     credential_path = Path(args.credential) if args.credential else None
     venv_path = Path(args.venv) if args.venv else None
@@ -815,20 +819,144 @@ def cmd_verify(args):
         return 0
     else:
         print(f"FAILED: {result.error}")
-        print("\nRun: governed-stack install <stack-said> --venv --credential")
+        print("\nRun: keri-sec install <stack-said> --venv --credential")
         return 1
+
+
+def cmd_permissions_parse(args):
+    """Parse and analyze permission entries."""
+    settings_path = Path(args.settings) if args.settings else _find_settings()
+    if not settings_path:
+        print("No settings file found. Specify --settings PATH.", file=sys.stderr)
+        return 1
+
+    parser = PermissionParser()
+    analysis = parser.parse(settings_path)
+
+    print(analysis.summary())
+
+    if args.verbose:
+        print("\nAll entries:")
+        for entry in analysis.entries:
+            marker = {
+                "clean": " ",
+                "wildcard_broad": "W",
+                "fragment": "F",
+                "redundant": "R",
+                "env_mixed": "E",
+                "one_time": "1",
+                "dangerous": "!",
+                "mcp": "M",
+                "webfetch": "W",
+                "junk": "X",
+            }.get(entry.category.value, "?")
+            sec = "A" if entry.permission_class.value == "authorization" else "C"
+            print(f"  [{marker}][{sec}] {entry.raw}")
+
+    return 0
+
+
+def cmd_permissions_audit(args):
+    """Full audit report with recommendations."""
+    settings_path = Path(args.settings) if args.settings else _find_settings()
+    if not settings_path:
+        print("No settings file found. Specify --settings PATH.", file=sys.stderr)
+        return 1
+
+    policy = PermissionPolicy(
+        max_entries=args.max_entries or 50,
+    )
+    parser = PermissionParser(policy=policy)
+    analysis = parser.parse(settings_path)
+
+    print("Permission Audit Report")
+    print("=" * 60)
+    print(analysis.summary())
+
+    # Policy violations
+    violations = policy.check(analysis)
+    if violations:
+        print(f"\nPolicy Violations ({len(violations)}):")
+        for v in violations:
+            print(f"  - {v}")
+    else:
+        print("\nPolicy: PASS")
+
+    # Suggestions
+    if analysis.suggestions:
+        print(f"\nConsolidation Suggestions ({len(analysis.suggestions)}):")
+        for i, suggestion in enumerate(analysis.suggestions, 1):
+            print(f"\n  {i}. [{suggestion.category.upper()}] {suggestion.rationale}")
+            if suggestion.replacement != "(remove)":
+                print(f"     Replacement: {suggestion.replacement}")
+            for entry in suggestion.entries[:5]:
+                print(f"       - {entry.raw}")
+            if len(suggestion.entries) > 5:
+                print(f"       ... and {len(suggestion.entries) - 5} more")
+
+    # Clean preview
+    clean = parser.generate_clean_permissions(analysis)
+    print(f"\nProjected cleanup: {analysis.total} -> {len(clean)} entries")
+
+    return 0
+
+
+def cmd_permissions_clean(args):
+    """Clean up permission entries."""
+    settings_path = Path(args.settings) if args.settings else _find_settings()
+    if not settings_path:
+        print("No settings file found. Specify --settings PATH.", file=sys.stderr)
+        return 1
+
+    parser = PermissionParser()
+
+    if args.dry_run or not args.apply:
+        removed, final = parser.apply_cleanup(settings_path, dry_run=True)
+        print(f"Dry run: would remove {len(removed)} entries")
+        print(f"Result: {len(final)} entries remaining")
+        if removed:
+            print("\nWould remove:")
+            for raw in removed:
+                print(f"  - {raw}")
+        if not args.apply:
+            print("\nRun with --apply to apply changes.")
+        return 0
+
+    # Apply cleanup
+    removed, final = parser.apply_cleanup(settings_path, dry_run=False)
+    print(f"Cleaned: removed {len(removed)} entries")
+    print(f"Result: {len(final)} entries remaining")
+    if removed:
+        print("\nRemoved:")
+        for raw in removed:
+            print(f"  - {raw}")
+
+    return 0
+
+
+def _find_settings() -> Optional[Path]:
+    """Find the settings.local.json file."""
+    # Check common locations
+    candidates = [
+        Path(".claude/settings.local.json"),
+        Path("/Users/hun-magnon/Documents/KERI/.claude/settings.local.json"),
+    ]
+    for p in candidates:
+        if p.exists():
+            return p
+    return None
 
 
 def main():
     """CLI entry point."""
     parser = argparse.ArgumentParser(
-        description="Governed Stack - KERI-governed dependency management",
+        description="keri-sec - KERI-governed dependency management",
         epilog="HYPER-EXPERIMENTAL: API may change without notice.",
     )
     parser.add_argument(
         "--version",
         action="version",
-        version="governed-stack 0.1.0 (HYPER-EXPERIMENTAL)",
+        version="keri-sec 0.1.0 (HYPER-EXPERIMENTAL)",
     )
 
     subparsers = parser.add_subparsers(dest="command", help="Commands")
@@ -860,7 +988,7 @@ def main():
     p_workspace.set_defaults(func=cmd_workspace)
 
     # define
-    p_define = subparsers.add_parser("define", help="Define a governed stack")
+    p_define = subparsers.add_parser("define", help="Define a keri-sec stack")
     p_define.add_argument("name", help="Stack name")
     p_define.add_argument("--controller", "-c", required=True, help="Controller AID")
     p_define.add_argument(
@@ -921,10 +1049,37 @@ def main():
     # SIGN EVERYTHING. VERIFY EVERYTHING. NO EXCEPTIONS.
     p_verify.set_defaults(func=cmd_verify)
 
+    # permissions - NEW
+    p_perms = subparsers.add_parser("permissions", help="Analyze and clean Claude Code permissions")
+    perms_sub = p_perms.add_subparsers(dest="perm_command", help="Permission commands")
+
+    # permissions parse
+    p_perm_parse = perms_sub.add_parser("parse", help="Parse and categorize permission entries")
+    p_perm_parse.add_argument("--settings", "-s", help="Path to settings.local.json")
+    p_perm_parse.add_argument("--verbose", "-v", action="store_true", help="Show all entries with categories")
+    p_perm_parse.set_defaults(func=cmd_permissions_parse)
+
+    # permissions audit
+    p_perm_audit = perms_sub.add_parser("audit", help="Full audit report with recommendations")
+    p_perm_audit.add_argument("--settings", "-s", help="Path to settings.local.json")
+    p_perm_audit.add_argument("--max-entries", type=int, help="Max allowed entries (default: 50)")
+    p_perm_audit.set_defaults(func=cmd_permissions_audit)
+
+    # permissions clean
+    p_perm_clean = perms_sub.add_parser("clean", help="Clean up permission entries")
+    p_perm_clean.add_argument("--settings", "-s", help="Path to settings.local.json")
+    p_perm_clean.add_argument("--dry-run", action="store_true", help="Show what would change without applying")
+    p_perm_clean.add_argument("--apply", action="store_true", help="Apply the cleanup")
+    p_perm_clean.set_defaults(func=cmd_permissions_clean)
+
     args = parser.parse_args()
 
     if not args.command:
         parser.print_help()
+        return 1
+
+    if args.command == "permissions" and not getattr(args, "perm_command", None):
+        p_perms.print_help()
         return 1
 
     return args.func(args)

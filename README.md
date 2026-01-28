@@ -1,440 +1,141 @@
-# Governed Stack
+# keri-sec
 
-> **⚠️ HYPER-EXPERIMENTAL ⚠️**
->
-> This package is in early development. The API may change without notice.
-> Use at your own risk. Not recommended for production use.
+Cryptographic dependency security for Python. Every version constraint gets a SAID. Every change gets an AID.
 
-KERI-governed dependency management - cryptographic source of truth for version constraints.
+## What it does
 
-## Problem
-
-Version truth fragmentation across your stack:
-
-```
-pyproject.toml:  requires-python = ">=3.10"
-CI workflow:     python-version: "3.12.1"
-README:          "Tested on Python 3.11+"
-Production:      Actually running 3.10.4
-Team Slack:      "Use 3.12, we need tomllib"
-```
-
-Five sources of "truth" → drift → bugs → security issues.
-
-## Solution
-
-**One cryptographic source of truth.**
+Your `pyproject.toml` says `keri>=1.2.0`. Someone changes it to `keri>=1.1.0`. Git blame tells you who. keri-sec tells you whether they were *authorized* to.
 
 ```python
-from governed_stack import StackManager, KERI_PRODUCTION_STACK
+from keri_sec import StackManager
 
 sm = StackManager()
 stack = sm.define_stack(
     name="my-project",
-    controller_aid="EMASTER_AID...",  # WHO can modify
-    constraints=KERI_PRODUCTION_STACK,
-    rationale="Production KERI deployment",
-)
-
-# Stack SAID: EABCDxyz... (cryptographic identifier)
-# Every constraint has its own SAID
-# Full audit trail of changes
-```
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                   Stack Registry                        │
-│  Constraint SAIDs with controller AIDs and audit trail  │
-│  WHO approved? WHEN? WHY? → Cryptographic proof         │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│             StackManager                                │
-│  - define_stack() → creates SAIDs                       │
-│  - check_compliance() → verifies environment            │
-│  - generate_pyproject() → exports with SAID refs        │
-│  - install_with_uv() → fast installation                │
-└──────────────────────┬──────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────┐
-│              UV / pip                                   │
-│  Actually installs the governed versions                │
-└─────────────────────────────────────────────────────────┘
-```
-
-**Key Insight:** UV/pip are EXECUTION tools. Governed Stack is the GOVERNANCE layer.
-
-## KERI Runtime (Integrated)
-
-Governed Stack includes a complete KERI runtime for projects using KERI infrastructure:
-
-```python
-from governed_stack.keri import get_runtime, get_infrastructure
-
-# Get KERI runtime
-runtime = get_runtime()
-if runtime.available:
-    # Use runtime.hby, runtime.rgy for KERI operations
-    pass
-
-# Or get infrastructure directly
-infra = get_infrastructure()
-hab = infra.hby.makeHab(name="my-identity")
-```
-
-### Features
-
-- **Singleton Infrastructure**: One `Habery`, one `Regery`, shared across all consumers
-- **Fracture Detection**: Warns if multiple Habery instances are detected
-- **HIO Doer Lifecycle**: Proper resource management via enter/exit/abort
-- **SAIDRef**: SAID-based module references that survive refactoring
-
-### SAIDRef (Refactoring Support)
-
-```python
-from governed_stack.keri import register_module, resolve
-
-# Register a function
-said = register_module("my_package.module", "my_function", alias="my_func")
-
-# Resolve by SAID or alias (survives file moves/renames)
-func = resolve("my_func")
-func = resolve(said[:12])  # Prefix match also works
-```
-
-**Note:** Previously available as standalone `keri-runtime` package, now integrated into governed-stack for unified KERI development.
-
-## Installation
-
-```bash
-# ⚠️ HYPER-EXPERIMENTAL - API may change
-pip install governed-stack
-
-# Or with UV (recommended)
-uv pip install governed-stack
-```
-
-## Quick Start
-
-### CLI Usage
-
-```bash
-# Define a governed stack
-governed-stack define my-project \
-  --controller EMASTER_AID... \
-  --stack keri
-
-# Check compliance
-governed-stack check my-project
-
-# Install dependencies
-governed-stack install my-project
-
-# Generate pyproject.toml
-governed-stack generate my-project --pyproject
-```
-
-### Python API
-
-```python
-from governed_stack import StackManager, KERI_PRODUCTION_STACK
-
-# Create manager
-sm = StackManager()
-
-# Define a stack
-stack = sm.define_stack(
-    name="my-project",
-    controller_aid="EMASTER_AID...",
+    controller_aid="EController...",  # Transferable AID — who can modify
     constraints={
         "python": ">=3.12",
         "keri": ">=1.2.0,<2.0.0",
         "hio": ">=0.6.14",
     },
-    rationale="Production KERI deployment",
 )
 
-print(f"Stack SAID: {stack.said}")
 # Stack SAID: EABCDxyz...
-
-# Check compliance
-result = sm.check_compliance(stack.said)
-print(f"Compliant: {result.compliant}")
-
-# Install if needed
-if not result.compliant:
-    success, output = sm.install_with_uv(stack.said)
-
-# Generate pyproject.toml
-toml = sm.generate_pyproject(stack.said)
-print(toml)
+# Every constraint has its own SAID
+# Controller AID bound via KEL — unforgeable
 ```
 
-## Pre-defined Stacks
+Any change to any constraint produces a different SAID. No controller key, no valid SAID.
 
-| Stack | Description |
-|-------|-------------|
-| `MINIMAL_STACK` | Just Python + keri + hio |
-| `KERI_PRODUCTION_STACK` | Full KERI production dependencies |
-| `KERI_DEV_STACK` | Production + pytest, ruff, mypy |
-| `KGQL_STACK` | KERI + lark for query language |
-| `WITNESS_STACK` | KERI + aiohttp for witnesses |
-| `AI_ORCHESTRATOR_STACK` | KERI + anthropic, openai |
+## Why
 
-## Generated Output
+| | pyproject.toml / uv.lock | keri-sec |
+|--|--------------------------|----------|
+| Source of truth | File (can drift) | Cryptographic SAID |
+| Who approved? | Git blame (mutable) | Controller AID (KEL-anchored) |
+| Audit trail | Git history (rewritable) | Append-only chain |
+| Tamper detection | None | SAID verification fails |
+| Cross-project sync | Manual | SAID reference |
 
-```toml
-# GOVERNED STACK - Do not edit manually
-# Stack: my-project
-# SAID: EABCDxyz...
-# Controller: EMASTER_AID...
-# Generated: 2026-01-24T12:00:00+00:00
+## Install
 
-[project]
-requires-python = ">=3.12"
-# Constraint SAID: EConstraint1...
-
-dependencies = [
-    "hio>=0.6.14",  # SAID: EConstraint2...
-    "keri>=1.2.0,<2.0.0",  # SAID: EConstraint3...
-]
+```bash
+pip install keri-sec
 ```
 
-## Comparison: Traditional vs Governed
+## Usage
 
-| Aspect | pyproject.toml / uv.lock | Governed Stack |
-|--------|--------------------------|----------------|
-| Source of Truth | File (can drift) | Cryptographic SAID |
-| Who Approved? | Git blame (mutable) | Controller AID (KEL) |
-| Audit Trail | Git history | Append-only chain |
-| Breaking Changes | Semver honor system | Enforced notice period |
-| Cross-Project Sync | Manual | SAID reference |
-| Reproducibility | Lockfile | SAID + controller chain |
-
-## Attack Scenarios (Tested)
-
-These scenarios are implemented as tests in `tests/test_attack_scenarios.py`:
-
-### 1. Tamper Detection
-
-**Traditional:** Someone edits `pyproject.toml` to change a version. No cryptographic way to detect.
-
-**Governed:** SAID verification fails immediately.
+### Define a governed stack
 
 ```python
-# Verify pyproject.toml hasn't been modified
-verified, said, _ = sm.verify_pyproject(pyproject_content)
-if not verified:
-    raise SecurityError("Dependencies have been tampered with!")
-```
+from keri_sec import StackManager, KERI_PRODUCTION_STACK
 
-### 2. Silent Version Drift
-
-**Traditional:** Dev has `keri==1.3.0`, prod has `keri==1.2.0`. Nobody notices.
-
-**Governed:** All environments verify against the same SAID.
-
-```python
-# All environments use same SAID
-CANONICAL_SAID = "EJhnw-FDaBvlhFCRAjTjxjJKBWx7vXEOITZYxYQD9g55"
-
-# Each environment verifies before deploy
-verified, _ = sm.verify_stack(
-    expected_said=CANONICAL_SAID,
-    name="myapp",
-    controller_aid="EOPS_TEAM",
-    constraints=current_constraints,
-)
-```
-
-### 3. Supply Chain Attack
-
-**Traditional:** Attacker injects malicious package or downgrades to vulnerable version.
-
-**Governed:** Injection or downgrade changes SAID, verification fails.
-
-```python
-# Security team's approved constraints
-approved = {"django": ">=4.2.0", "requests": ">=2.31.0"}
-
-# Attacker tries to inject or downgrade
-compromised = {"django": ">=4.2.0", "requests": ">=2.25.0", "evil-pkg": ">=1.0"}
-
-# Different constraints = different SAID
-assert compute_said(approved) != compute_said(compromised)
-```
-
-### 4. Unauthorized Modification
-
-**Traditional:** Junior dev changes version, git blame shows who but not authorization.
-
-**Governed:** Controller AID cryptographically bound. Unauthorized changes produce different SAID.
-
-```python
-# Only ESENIOR_ENGINEER_AID can produce this SAID
+sm = StackManager()
 stack = sm.define_stack(
-    name="company-stack",
-    controller_aid="ESENIOR_ENGINEER_AID",
-    constraints={"keri": ">=1.2.0"},
-)
-
-# Junior dev can't forge the SAID without the controller key
-```
-
-### 5. CI/CD Verification Workflow
-
-```python
-# In CI pipeline:
-APPROVED_SAID = os.environ["APPROVED_STACK_SAID"]  # From secure config
-
-# Load developer's pyproject.toml
-with open("pyproject.toml") as f:
-    content = f.read()
-
-# Verify before deploy
-verified, _, _ = sm.verify_pyproject(content, expected_said=APPROVED_SAID)
-if not verified:
-    sys.exit("DEPLOY BLOCKED: Dependencies don't match approved SAID")
-```
-
-## Verification API
-
-```python
-# Verify constraints produce expected SAID
-verified, computed = sm.verify_stack(
-    expected_said="EABCDxyz...",
     name="my-project",
-    controller_aid="BMASTER_AID",
-    constraints={"python": ">=3.12", "keri": ">=1.2.0"},
+    controller_aid="EController...",
+    constraints=KERI_PRODUCTION_STACK,
 )
-
-# Verify pyproject.toml (parses and checks embedded SAID)
-verified, said, constraints = sm.verify_pyproject(pyproject_content)
-
-# Verify requirements.txt
-verified, said, constraints = sm.verify_requirements(requirements_content)
 ```
 
-## Inspired By
+### Verify in CI
 
-This project synthesizes ideas from:
+```python
+APPROVED_SAID = os.environ["APPROVED_STACK_SAID"]
 
-### KERI (Key Event Receipt Infrastructure) by Samuel M. Smith
+verified, _, _ = sm.verify_pyproject(pyproject_content, expected_said=APPROVED_SAID)
+if not verified:
+    sys.exit("DEPLOY BLOCKED: dependencies don't match approved SAID")
+```
 
-- Self-certifying identifiers, SAIDs, TEL anchoring
-- https://keri.one
+### CLI
 
-### Transit by Cognitect (Rich Hickey et al.)
+```bash
+keri-sec define my-project --controller EController...
+keri-sec check my-project
+keri-sec install my-project
+keri-sec generate my-project --pyproject
+```
 
-- Handler-based type extensibility
-- Ground types vs extension types
-- "No opaque blobs" principle
-- Self-describing prefixes
-- https://github.com/cognitect/transit-format
+## DAID Registries
 
-**Key Insight:** Transit solved semantic type preservation across language
-boundaries. Governed Stack solves authorization preservation across
-environment boundaries. Both reject central registries as trust anchors.
+keri-sec includes governed registries for three artifact types, each using DAID (stable identity across content rotation):
 
-## Design Principles
+| Registry | Governs | Key property |
+|----------|---------|--------------|
+| `AlgorithmDAIDRegistry` | Cryptographic algorithms | Category (hash, sig, KDF) |
+| `SchemaDAIDRegistry` | ACDC credential schemas | Breaking change tracking |
+| `PackageDAIDRegistry` | Python packages | Publisher AID binding |
 
-### KERI Principles
+All three support: register, resolve, rotate, deprecate, revoke.
 
-This package follows Samuel Smith's KERI design principles:
+Cardinal rules (via `keri-governance`) define minimum verification strength per operation — e.g., registration requires TEL-anchored credentials, resolution needs only a SAID.
 
-1. **SAIDs for Content-Addressability** - Every constraint has a SAID derived from its content
-2. **Controller AIDs for Authorization** - Only the controller can modify stack constraints
-3. **Append-Only History** - Changes create new versions, never delete
-4. **Deterministic Serialization** - JSON with sorted keys ensures reproducible SAIDs
-5. **Blake3 for Performance** - Uses keripy's Diger with Blake3_256
+## Attestation Tiers
 
-### Transit Patterns
+Three tiers for graduated trust:
 
-Handler-based extensibility inspired by Transit:
+| Tier | Trust | What it proves |
+|------|-------|----------------|
+| TEL_ANCHORED | Highest | Full credential chain (issuer AID + KEL + TEL) |
+| KEL_ANCHORED | Medium | Signature verifiable against key state |
+| SAID_ONLY | Integrity | Content hash — no authority claim |
 
-1. **Ground Types** - Built-in types with well-known verification (python, package, system, binary)
-2. **Extension Types** - User-defined types that compose on ground types
-3. **No Opaque Blobs** - Every constraint must decompose to verifiable primitives
-4. **Self-Describing Codes** - CESR-aligned type codes embedded in encoded constraints
-5. **Forward Compatibility** - Unknown types preserved for roundtrip serialization
+No "signed-only" tier. A signature without KEL anchoring violates KERI's end-to-end verifiability.
 
 ## Extension Handlers
 
-Register custom constraint handlers for specialized verification:
+Custom constraint types via handler registration:
 
 ```python
-from governed_stack import ConstraintHandler, register_handler, VerificationResult
+from keri_sec import ConstraintHandler, register_handler
 
 class DockerImageHandler(ConstraintHandler):
     @property
     def code(self) -> str:
-        return "D"  # Single-char code
+        return "D"
 
     @property
     def type_name(self) -> str:
         return "docker-image"
 
-    def serialize(self, name: str, spec: str) -> bytes:
-        # Deterministic serialization for SAID computation
-        import json
-        data = {"handler": self.code, "type": self.type_name, "name": name, "spec": spec}
-        return json.dumps(data, sort_keys=True, separators=(",", ":")).encode()
+    def verify(self, name, spec):
+        # Your verification logic
+        ...
 
-    def verify(self, name: str, spec: str) -> VerificationResult:
-        # Check if Docker image exists with correct tag
-        import subprocess
-        result = subprocess.run(["docker", "images", "-q", f"{name}:{spec}"], capture_output=True)
-        found = bool(result.stdout.strip())
-        return VerificationResult(
-            verified=found,
-            constraint_said=self.compute_said(name, spec),
-            actual_value=spec if found else "",
-            expected_spec=spec,
-            message="" if found else f"Docker image {name}:{spec} not found",
-            handler_code=self.code,
-        )
-
-# Register the handler
 register_handler("docker-image", DockerImageHandler())
-
-# Now use it in stack definitions
-stack = sm.define_stack(
-    name="containerized-app",
-    controller_aid="EMASTER...",
-    constraints={
-        "python": ">=3.12",
-        "docker-image:myapp": "latest",  # Uses DockerImageHandler
-    },
-)
 ```
 
-## Requirements
+Ground types (python, package, system, binary) are built in. Extension types compose on them.
 
-- Python >= 3.12
-- keri >= 1.2.0
-- hio >= 0.6.14
-- keri-governance >= 0.1.0
-- packaging >= 23.0
-- libsodium (system dependency)
+## Dependencies
 
-### Installing libsodium
-
-```bash
-# macOS
-brew install libsodium
-
-# Ubuntu/Debian
-apt-get install libsodium-dev
-
-# Fedora
-dnf install libsodium-devel
-```
+- `keri>=1.2.0` — Core KERI (KEL, TEL, SAID computation)
+- `hio>=0.6.14` — HIO async (Doer lifecycle)
+- `keri-governance>=0.1.0` — Constraint algebra and cardinal rules
+- `packaging>=23.0` — Version specifier parsing
+- libsodium (system)
 
 ## License
 
 Apache-2.0
-

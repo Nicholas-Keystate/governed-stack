@@ -1,8 +1,8 @@
 # -*- encoding: utf-8 -*-
 """
-Dogfooding test - governed-stack manages its own dependencies.
+Dogfooding test - keri-sec manages its own dependencies.
 
-This test simulates using governed-stack to govern its own development environment.
+This test simulates using keri-sec to govern its own development environment.
 It exposes the bootstrap problem and environment isolation gaps.
 """
 
@@ -17,18 +17,18 @@ import pytest
 
 
 class TestDogfooding:
-    """Test governed-stack managing its own dependencies."""
+    """Test keri-sec managing its own dependencies."""
 
     def test_define_self_stack(self):
-        """Define a stack for governed-stack development."""
+        """Define a stack for keri-sec development."""
         # Import here to test the import path issue
-        from governed_stack import StackManager, ConstraintType
+        from keri_sec import StackManager, ConstraintType
 
         sm = StackManager(base_path=Path(tempfile.mkdtemp()))
 
-        # Define what governed-stack needs
+        # Define what keri-sec needs
         stack = sm.define_stack(
-            name="governed-stack-dev",
+            name="keri-sec-dev",
             controller_aid="BSELF_DOGFOOD_TEST",
             constraints={
                 "python": ">=3.12",
@@ -39,7 +39,7 @@ class TestDogfooding:
                 # System constraint - the problematic one
                 # "system:libsodium": ">=1.0.18",
             },
-            rationale="Self-governance: governed-stack development environment",
+            rationale="Self-governance: keri-sec development environment",
         )
 
         assert stack.said.startswith("E")
@@ -49,12 +49,12 @@ class TestDogfooding:
 
     def test_verify_current_environment(self):
         """Verify current environment against self-stack."""
-        from governed_stack import StackManager
+        from keri_sec import StackManager
 
         sm = StackManager(base_path=Path(tempfile.mkdtemp()))
 
         stack = sm.define_stack(
-            name="governed-stack-dev",
+            name="keri-sec-dev",
             controller_aid="BSELF_DOGFOOD_TEST",
             constraints={
                 "python": ">=3.12",
@@ -70,12 +70,12 @@ class TestDogfooding:
 
     def test_generate_own_pyproject(self):
         """Generate pyproject.toml that matches our actual pyproject.toml."""
-        from governed_stack import StackManager
+        from keri_sec import StackManager
 
         sm = StackManager(base_path=Path(tempfile.mkdtemp()))
 
         stack = sm.define_stack(
-            name="governed-stack",
+            name="keri-sec",
             controller_aid="BSELF_DOGFOOD_TEST",
             constraints={
                 "python": ">=3.12",
@@ -95,7 +95,7 @@ class TestDogfooding:
 
     def test_handler_verification_path(self):
         """Test that handler-based verification works for self-check."""
-        from governed_stack import StackManager, get_handler
+        from keri_sec import StackManager, get_handler
 
         sm = StackManager(base_path=Path(tempfile.mkdtemp()))
 
@@ -123,7 +123,7 @@ class TestDogfooding:
 
         This is the fundamental limitation of self-verification.
         """
-        from governed_stack import get_handler
+        from keri_sec import get_handler
 
         handler = get_handler("package")
 
@@ -134,11 +134,11 @@ class TestDogfooding:
         assert "not installed" in result.message.lower()
 
         # The bootstrap insight: we CAN'T verify keri without keri
-        # So governed-stack has an implicit dependency on its verifier
+        # So keri-sec has an implicit dependency on its verifier
 
     def test_said_determinism_for_self(self):
         """Verify SAID computation is deterministic for self-governance."""
-        from governed_stack import StackManager
+        from keri_sec import StackManager
 
         sm1 = StackManager(base_path=Path(tempfile.mkdtemp()))
         sm2 = StackManager(base_path=Path(tempfile.mkdtemp()))
@@ -150,13 +150,13 @@ class TestDogfooding:
         }
 
         stack1 = sm1.define_stack(
-            name="governed-stack-dev",
+            name="keri-sec-dev",
             controller_aid="BCONTROLLER",
             constraints=constraints,
         )
 
         stack2 = sm2.define_stack(
-            name="governed-stack-dev",
+            name="keri-sec-dev",
             controller_aid="BCONTROLLER",
             constraints=constraints,
         )
@@ -177,7 +177,7 @@ class TestDogfooding:
         - Version extraction is fragile
         - No universal package manager query
         """
-        from governed_stack import get_handler
+        from keri_sec import get_handler
 
         handler = get_handler("system")
         result = handler.verify("libsodium", ">=1.0.0")
@@ -204,7 +204,7 @@ class TestTransitSchemaParadox:
         The handler's verify() method defines the validation rules.
         Together, they ARE a schema - just not as external JSON Schema.
         """
-        from governed_stack import get_handler
+        from keri_sec import get_handler
 
         handler = get_handler("package")
 
@@ -233,7 +233,7 @@ class TestTransitSchemaParadox:
         KERI uses SAIDs to identify schemas.
         Both are content-addressed - neither requires a central registry.
         """
-        from governed_stack import get_handler
+        from keri_sec import get_handler
 
         handler = get_handler("package")
 
@@ -256,7 +256,7 @@ class TestTransitSchemaParadox:
         Ground types: Handler IS schema (Transit pattern)
         Extension types: Can reference external schema SAID (KERI pattern)
         """
-        from governed_stack import ExtensionConstraint
+        from keri_sec import ExtensionConstraint
 
         ext = ExtensionConstraint(
             tag="keri-production",
@@ -284,7 +284,7 @@ class TestTransitSchemaParadox:
         This is Transit's key insight applied to KERI:
         The handler knows how to verify - no schema fetch needed.
         """
-        from governed_stack import StackManager, get_handler
+        from keri_sec import StackManager, get_handler
 
         sm = StackManager(base_path=Path(tempfile.mkdtemp()))
 

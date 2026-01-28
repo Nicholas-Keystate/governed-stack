@@ -37,7 +37,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from keri.core import coring
 
 # Handler imports - Transit-inspired type system
-from governed_stack.handlers import (
+from keri_sec.handlers import (
     ConstraintHandler,
     VerificationResult,
     get_handler,
@@ -165,10 +165,10 @@ class StackManager:
         Initialize stack manager.
 
         Args:
-            base_path: Path for storing stack definitions (default: ~/.governed-stack/)
+            base_path: Path for storing stack definitions (default: ~/.keri-sec/)
             uv_path: Path to UV binary (auto-detected if not provided)
         """
-        self.base_path = base_path or Path.home() / ".governed-stack"
+        self.base_path = base_path or Path.home() / ".keri-sec"
         self.uv_path = uv_path or self._find_uv()
 
         # Ensure directories exist

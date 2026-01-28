@@ -3,7 +3,7 @@
 Attack scenario tests demonstrating governance advantages.
 
 These tests show concrete examples where traditional dependency management
-fails but governed-stack's cryptographic commitments succeed.
+fails but keri-sec's cryptographic commitments succeed.
 
 PHILOSOPHY:
 - Traditional pyproject.toml/requirements.txt can be edited by anyone
@@ -23,7 +23,7 @@ import json
 import hashlib
 from pathlib import Path
 
-from governed_stack import (
+from keri_sec import (
     StackManager,
     KERI_PRODUCTION_STACK,
     MINIMAL_STACK,
@@ -54,7 +54,7 @@ class TestTamperDetection:
 
     def test_modified_pyproject_detectable(self, manager):
         """Modifying generated pyproject.toml is cryptographically detectable."""
-        # Create governed stack
+        # Create keri-sec stack
         stack = manager.define_stack(
             name="secure-project",
             controller_aid="BAUTHORIZED_CONTROLLER_AID",

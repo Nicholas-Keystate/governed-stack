@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "governed-stack"
+name = "keri-sec"
 version = "0.1.0"
-description = "KERI-governed dependency management - cryptographic source of truth for version constraints"
+description = "KERI-governed dependency security — cryptographic source of truth for version constraints"
 readme = "README.md"
 license = "Apache-2.0"
 requires-python = ">=3.12"
@@ -48,13 +48,13 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/Nicholas-Keystate/governed-stack"
-Documentation = "https://github.com/Nicholas-Keystate/governed-stack#readme"
-Repository = "https://github.com/Nicholas-Keystate/governed-stack"
-Issues = "https://github.com/Nicholas-Keystate/governed-stack/issues"
+Homepage = "https://github.com/Nicholas-Keystate/keri-sec"
+Documentation = "https://github.com/Nicholas-Keystate/keri-sec#readme"
+Repository = "https://github.com/Nicholas-Keystate/keri-sec"
+Issues = "https://github.com/Nicholas-Keystate/keri-sec/issues"
 
 [project.scripts]
-governed-stack = "governed_stack.cli:main"
+keri-sec = "keri_sec.cli:main"
 
 [tool.hatch.build.targets.sdist]
 include = [
@@ -63,7 +63,7 @@ include = [
 ]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/governed_stack"]
+packages = ["src/keri_sec"]
 
 [tool.hatch.build.targets.wheel.sources]
 "src" = ""
@@ -82,7 +82,7 @@ target-version = "py312"
 select = ["E", "F", "W", "I"]
 ignore = ["E501"]
 
-[tool.governed-stack]
+[tool.keri-sec]
 stack_said = "ECsfg7VD6EjGcTMv7I9nzsZIMila6prLhpU4CYfum1-n"
 owner_baid = "BAID_WORKSPACE"
 workspace_said = "EPRDHESlDDaz59P7ou-VkizAABNVH4K7T1RPz2aXKA-N"

@@ -323,7 +323,7 @@ def issue_installation_credential(
     # 2. Try environment KERI session
     if issuer is None:
         try:
-            from governed_stack.keri.runtime import get_keri_runtime
+            from keri_sec.keri.runtime import get_keri_runtime
             runtime = get_keri_runtime()
             if runtime and runtime.available and runtime.hab:
                 issuer = InstallationCredentialIssuer(

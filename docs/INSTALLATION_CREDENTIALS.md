@@ -4,8 +4,8 @@
 
 ## Problem
 
-Current governed-stack computes SAIDs but doesn't verify them at runtime.
-The SAID in `[tool.governed-stack]` is decoration, not verification.
+Current keri-sec computes SAIDs but doesn't verify them at runtime.
+The SAID in `[tool.keri-sec]` is decoration, not verification.
 
 ```
 Current Flow (BROKEN):
@@ -126,7 +126,7 @@ Correct Flow:
 ### Handler Pattern (Modular Package Managers)
 
 ```
-governed_stack/
+keri_sec/
 ├── handlers/
 │   ├── base.py              # PackageManagerHandler ABC
 │   ├── uv.py                # UVHandler - primary
@@ -141,7 +141,7 @@ governed_stack/
 ├── verification/
 │   ├── environment.py       # Verify installed matches credential
 │   ├── hooks.py             # pytest/pre-run hooks
-│   └── cli.py               # `governed-stack verify` command
+│   └── cli.py               # `keri-sec verify` command
 └── doers/
     ├── resolver.py          # ResolutionDoer - HIO pattern
     ├── installer.py         # InstallerDoer
@@ -274,19 +274,19 @@ class UVHandler(PackageManagerHandler):
 
 ```bash
 # Install with credential issuance
-governed-stack install my-stack --venv --credential
+keri-sec install my-stack --venv --credential
 # Creates: .governed/installation.json (TEL-anchored)
 
 # Verify environment before running
-governed-stack verify
+keri-sec verify
 # Checks: installed packages match credential, TEL not revoked
 
 # Show installation credential
-governed-stack credential show
+keri-sec credential show
 # Displays: credential details, TEL status, package list
 
 # Revoke installation (e.g., after security issue found)
-governed-stack credential revoke --reason "CVE-2026-1234 in requests"
+keri-sec credential revoke --reason "CVE-2026-1234 in requests"
 ```
 
 ## Pytest Integration
@@ -294,7 +294,7 @@ governed-stack credential revoke --reason "CVE-2026-1234 in requests"
 ```python
 # conftest.py
 import pytest
-from governed_stack.verification import verify_environment
+from keri_sec.verification import verify_environment
 
 def pytest_configure(config):
     """Verify environment before running tests."""
@@ -302,7 +302,7 @@ def pytest_configure(config):
     if not result.verified:
         pytest.exit(
             f"Environment verification failed: {result.error}\n"
-            f"Run: governed-stack install --credential"
+            f"Run: keri-sec install --credential"
         )
 ```
 
@@ -317,10 +317,10 @@ jobs:
 
       - name: Install governed environment
         run: |
-          governed-stack install ${{ secrets.STACK_SAID }} --venv --credential
+          keri-sec install ${{ secrets.STACK_SAID }} --venv --credential
 
       - name: Verify environment
-        run: governed-stack verify
+        run: keri-sec verify
 
       - name: Run tests
         run: .venv/bin/pytest
@@ -329,7 +329,7 @@ jobs:
 ## Migration Path
 
 1. **Phase 1: Lock File SAIDs** (Non-breaking)
-   - Add `governed-stack lock` command
+   - Add `keri-sec lock` command
    - Generate SAIDified lock files alongside installation
    - No behavioral change to existing `install`
 

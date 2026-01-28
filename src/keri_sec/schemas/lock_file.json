@@ -14,7 +14,7 @@
     "v": {
       "type": "string",
       "const": "GS10JSON000000_",
-      "description": "Governed Stack lock file version"
+      "description": "keri-sec lock file version"
     },
     "governed_by": {
       "type": "string",
