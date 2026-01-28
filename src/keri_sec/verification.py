@@ -157,21 +157,76 @@ def get_python_version(venv_path: Path) -> Optional[str]:
         return None
 
 
-def verify_tel_status(registry_said: str, credential_said: str) -> str:
+def verify_tel_status(
+    registry_said: str,
+    credential_said: str,
+    reger=None,
+    hby=None,
+) -> str:
     """
-    Verify credential TEL status.
+    Verify credential TEL status by checking the TEL events.
 
-    Returns: "valid", "revoked", or "unknown"
+    Args:
+        registry_said: SAID of the credential registry
+        credential_said: SAID of the credential to verify
+        reger: Optional Reger database instance
+        hby: Optional Habery instance (for resolving tevers if reger not provided)
+
+    Returns:
+        "valid" - credential has been issued and not revoked
+        "revoked" - credential has been revoked
+        "unknown" - cannot determine status (missing components or registry)
     """
-    # TODO: Implement actual TEL verification via keripy
-    # For now, return unknown (allows operation but logs warning)
     try:
-        from keri.vdr import verifying
-        # Would need access to Habery and registry
-        # verifier = verifying.Verifier(hby=hby, rgy=rgy)
-        # state = verifier.verify(credential_said)
-        return "unknown"
+        from keri.core import coring
+
+        # Try to get reger from various sources
+        if reger is None:
+            # Try from KERI runtime
+            try:
+                from keri_sec.keri.runtime import get_keri_runtime
+                runtime = get_keri_runtime()
+                if runtime and runtime.available and runtime.rgy:
+                    reger = runtime.rgy.reger
+                    hby = runtime.hby
+            except ImportError:
+                pass
+
+        if reger is None:
+            return "unknown"
+
+        # Get the TEL event verifier (tevers maps registry SAID -> Tever)
+        tevers = reger.tevers if hasattr(reger, 'tevers') else None
+        if tevers is None:
+            return "unknown"
+
+        # Check if registry exists
+        if registry_said not in tevers:
+            return "unknown"
+
+        # Get credential state from the registry's Tever
+        tever = tevers[registry_said]
+        state = tever.vcState(credential_said)
+
+        if state is None:
+            # Credential not found in TEL
+            return "unknown"
+
+        # Check event type to determine status
+        # iss/bis = issuance events, rev/brv = revocation events
+        if state.et in (coring.Ilks.rev, coring.Ilks.brv):
+            return "revoked"
+        elif state.et in (coring.Ilks.iss, coring.Ilks.bis):
+            return "valid"
+        else:
+            return "unknown"
+
     except ImportError:
+        return "unknown"
+    except Exception as e:
+        # Log but don't fail - return unknown
+        import logging
+        logging.warning(f"TEL status verification failed: {e}")
         return "unknown"
 
 

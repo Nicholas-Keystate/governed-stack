@@ -24,8 +24,8 @@ from keri.core import coring
 from .lock_file import LockFile, ResolvedPackage, compute_said
 
 
-# Schema SAID (will be computed from schema content)
-INSTALLATION_CREDENTIAL_SCHEMA_SAID = "EInstCred_GS_v1_PLACEHOLDER"
+# Schema SAID (computed from schemas/installation_credential.json via Saider.saidify)
+INSTALLATION_CREDENTIAL_SCHEMA_SAID = "ELJm6sOw-eZmeTGgLrO0p614JPcJLX5RhWIw9WzvoaDV"
 
 
 @dataclass
@@ -258,16 +258,71 @@ class InstallationCredentialIssuer:
         return cred
 
     def _anchor_to_tel(self, cred: IssuedCredential) -> None:
-        """Anchor credential to TEL registry."""
+        """
+        Anchor credential to TEL registry.
+
+        Creates a TEL issuance event and anchors it to the issuer's KEL
+        via an interaction event. This makes the credential verifiable
+        by resolving the TEL status.
+
+        Args:
+            cred: The issued credential to anchor
+
+        Raises:
+            RuntimeError: If registry not found or anchoring fails
+        """
         if not self.rgy or not self.hby:
             return
 
-        # This would use keripy's Registry.issue() method
-        # For now, this is a placeholder for the integration
-        # from keri.vdr import credentialing
-        # registry = self.rgy.registries[self.registry_said]
-        # registry.issue(said=cred.said, ...)
-        pass
+        from keri.core import eventing as keventing
+        from keri.core import serdering
+        from datetime import datetime, timezone
+
+        # Get the registry - rgy could be Regery (manager) or Registry (single)
+        registry = None
+        if hasattr(self.rgy, 'regs') and self.registry_said:
+            # Regery - get registry by key
+            registry = self.rgy.regs.get(self.registry_said)
+        elif hasattr(self.rgy, 'issue'):
+            # Direct Registry instance
+            registry = self.rgy
+
+        if registry is None:
+            raise RuntimeError(
+                f"Registry not found: {self.registry_said}\n"
+                "Ensure registry is created before issuing credentials."
+            )
+
+        # Get the hab (habitat) for signing
+        hab = None
+        if hasattr(registry, 'hab'):
+            hab = registry.hab
+        elif hasattr(self.hby, 'habByName'):
+            # Try to get hab by issuer prefix
+            for name, h in self.hby.habs.items():
+                if h.pre == self.issuer_aid:
+                    hab = h
+                    break
+
+        if hab is None:
+            raise RuntimeError(
+                f"Habitat not found for issuer: {self.issuer_aid}\n"
+                "Ensure issuer AID has a valid habitat."
+            )
+
+        # Create TEL issuance event
+        dt = datetime.now(timezone.utc).isoformat()
+        iserder = registry.issue(said=cred.said, dt=dt)
+
+        # Create seal for anchoring TEL event to KEL
+        rseal = keventing.SealEvent(iserder.pre, iserder.snh, iserder.said)
+        rseal = dict(i=rseal.i, s=rseal.s, d=rseal.d)
+
+        # Anchor via interaction event (or rotation if estOnly)
+        if hasattr(registry, 'estOnly') and registry.estOnly:
+            anc = hab.rotate(data=[rseal])
+        else:
+            anc = hab.interact(data=[rseal])
 
     @property
     def tel_available(self) -> bool:
