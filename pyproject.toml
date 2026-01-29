@@ -37,7 +37,8 @@ dependencies = [
     "keri>=1.2.0",
     "hio>=0.6.14",
     "packaging>=23.0",
-    "keri-governance>=0.1.0",
+    "keri-governance @ git+https://github.com/Nicholas-Keystate/keri-governance.git",
+    "keri-infra @ file:///Users/hun-magnon/Documents/KERI/keri-infra",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +57,9 @@ Issues = "https://github.com/Nicholas-Keystate/keri-sec/issues"
 [project.scripts]
 keri-sec = "keri_sec.cli:main"
 
+[tool.hatch.metadata]
+allow-direct-references = true
+
 [tool.hatch.build.targets.sdist]
 include = [
     "/src",
@@ -70,6 +74,7 @@ packages = ["src/keri_sec"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 addopts = "-v --tb=short"

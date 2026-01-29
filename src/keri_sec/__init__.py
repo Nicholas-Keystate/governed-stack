@@ -199,6 +199,9 @@ from keri_sec.installation_credential import (
     load_credential,
 )
 
+# Base Registry (Generic base for all GAID/DAID registries)
+from keri_sec.base_registry import BaseGAIDRegistry
+
 # Algorithm DAIDs (GAID - Governed Algorithm Identifiers)
 from keri_sec.algorithms import (
     AlgorithmCategory,
@@ -269,6 +272,12 @@ from keri_sec.governance import (
     compute_diff,
     get_cardinal_ruleset_registry,
     reset_cardinal_ruleset_registry,
+    # Governance Gate
+    GovernanceGate,
+    GovernanceViolation,
+    tier_to_strength,
+    strength_to_tier,
+    infer_strength,
 )
 
 # Runtime GAIDs (Governed Runtime Environments)
@@ -383,6 +392,8 @@ __all__ = [
     "issue_installation_credential",
     "save_credential",
     "load_credential",
+    # Base Registry
+    "BaseGAIDRegistry",
     # Algorithm DAIDs (GAID)
     "AlgorithmCategory",
     "AlgorithmDAID",
@@ -437,6 +448,12 @@ __all__ = [
     "compute_diff",
     "get_cardinal_ruleset_registry",
     "reset_cardinal_ruleset_registry",
+    # Governance Gate
+    "GovernanceGate",
+    "GovernanceViolation",
+    "tier_to_strength",
+    "strength_to_tier",
+    "infer_strength",
     # Runtime GAIDs (Governed Runtime Environments)
     "RuntimeManifest",
     "capture_current_manifest",

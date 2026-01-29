@@ -54,6 +54,7 @@ from keri_governance.cardinal import (
 from keri_governance.primitives import StrengthLevel
 
 from ..attestation import Tier, Attestation, create_attestation, compute_said
+from ..base_registry import BaseGAIDRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -340,7 +341,7 @@ class VerificationResult:
 # ---------------------------------------------------------------------------
 
 
-class CardinalRuleSetRegistry:
+class CardinalRuleSetRegistry(BaseGAIDRegistry[CardinalRuleSetGAID]):
     """
     Registry of governed cardinal rulesets.
 
@@ -350,12 +351,22 @@ class CardinalRuleSetRegistry:
     - Meta-governance enforcement
     - SAID integrity verification
     - Deprecation/supersession
+
+    Note: No governance gate — this IS the governance layer.
     """
 
     def __init__(self):
-        self._rulesets: Dict[str, CardinalRuleSetGAID] = {}  # gaid -> GAID obj
-        self._by_name: Dict[str, str] = {}  # name -> gaid
-        self._lock = threading.Lock()
+        super().__init__()  # no governance gate
+
+    # -- Base class hooks --
+
+    def _apply_deprecation(self, obj, reason, successor, deadline):
+        obj.status = CardinalRuleSetStatus.DEPRECATED
+        obj.deprecation = DeprecationNotice(
+            reason=reason,
+            successor_gaid=successor,
+            migration_deadline=deadline,
+        )
 
     def register(
         self,
@@ -420,26 +431,10 @@ class CardinalRuleSetRegistry:
             versions=[initial_version],
         )
 
-        with self._lock:
-            self._rulesets[gaid] = gaid_obj
-            self._by_name[name] = gaid
+        self._store(gaid, name, gaid_obj)
 
         logger.info(f"Registered cardinal ruleset GAID: {name} -> {gaid[:16]}...")
         return gaid_obj
-
-    def resolve(self, identifier: str) -> Optional[CardinalRuleSetGAID]:
-        """
-        Resolve by GAID, GAID prefix, or name.
-        """
-        with self._lock:
-            if identifier in self._rulesets:
-                return self._rulesets[identifier]
-            for gaid, obj in self._rulesets.items():
-                if gaid.startswith(identifier):
-                    return obj
-            if identifier in self._by_name:
-                return self._rulesets.get(self._by_name[identifier])
-        return None
 
     def rotate(
         self,
@@ -641,19 +636,11 @@ class CardinalRuleSetRegistry:
         issuer_hab: Any = None,
     ) -> None:
         """Deprecate a cardinal ruleset GAID."""
+        super().deprecate(gaid, reason, successor=successor_gaid, deadline=migration_deadline, issuer_hab=issuer_hab)
+
+        # Create deprecation attestation
         gaid_obj = self.resolve(gaid)
-        if gaid_obj is None:
-            raise ValueError(f"Cardinal ruleset not found: {gaid}")
-
-        with self._lock:
-            gaid_obj.status = CardinalRuleSetStatus.DEPRECATED
-            gaid_obj.deprecation = DeprecationNotice(
-                reason=reason,
-                successor_gaid=successor_gaid,
-                migration_deadline=migration_deadline,
-            )
-
-        if issuer_hab:
+        if issuer_hab and gaid_obj:
             try:
                 create_attestation(
                     tier=Tier.SAID_ONLY,
@@ -669,15 +656,9 @@ class CardinalRuleSetRegistry:
             except Exception as e:
                 logger.warning(f"Deprecation attestation failed: {e}")
 
-        logger.warning(f"Deprecated cardinal ruleset: {gaid_obj.name} - {reason}")
-
     def list_rulesets(self, include_deprecated: bool = False) -> List[CardinalRuleSetGAID]:
         """List all registered cardinal rulesets."""
-        with self._lock:
-            rulesets = list(self._rulesets.values())
-            if not include_deprecated:
-                rulesets = [r for r in rulesets if not r.is_deprecated]
-            return rulesets
+        return self.list_all(include_deprecated=include_deprecated)
 
     # --- Meta-governance validation ---
 

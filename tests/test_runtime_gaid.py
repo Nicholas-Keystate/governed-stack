@@ -599,3 +599,248 @@ class TestIntegrationWithAlgorithmRegistry:
         # Manifest should contain blake3 GAID
         assert "blake3" in manifest.algorithm_gaids
         assert manifest.algorithm_gaids["blake3"] == blake3.daid
+
+
+class TestGovernanceRulesEnforcement:
+    """Test governance rules edge cases (binding taxonomy Layer 10)."""
+
+    def _make_registry_with_rules(self, rules):
+        """Helper: create registry with a runtime governed by given rules."""
+        registry = RuntimeGAIDRegistry()
+        manifest = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+            algorithm_gaids={"blake3": "E_BLAKE3", "ed25519": "E_ED25519"},
+            platform_info={"system": "Darwin"},
+        )
+        runtime = registry.register(
+            name="test-governed",
+            manifest=manifest,
+            governance_rules=rules,
+        )
+        return registry, runtime
+
+    def test_forbidden_algorithms_violation(self):
+        """Forbidden algorithms should produce violations."""
+        rules = GovernanceRules(forbidden_algorithms=["sha256"])
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        # Manifest with forbidden algorithm
+        current = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+            algorithm_gaids={"blake3": "E_BLAKE3", "sha256": "E_SHA256"},
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert not result.compliant
+        assert any("sha256" in v for v in result.violations)
+
+    def test_forbidden_algorithms_pass(self):
+        """No forbidden algorithms present should pass."""
+        rules = GovernanceRules(forbidden_algorithms=["sha256"])
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        current = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+            algorithm_gaids={"blake3": "E_BLAKE3"},
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert result.compliant
+
+    def test_max_python_version_violation(self):
+        """Python version above max should fail."""
+        rules = GovernanceRules(max_python_version="3.12.99")
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        current = RuntimeManifest(
+            python_version="3.13.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert not result.compliant
+        assert any("Python" in v and ">" in v for v in result.violations)
+
+    def test_max_keripy_version_violation(self):
+        """keripy version above max should fail."""
+        rules = GovernanceRules(max_keripy_version="1.2.99")
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        current = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert not result.compliant
+        assert any("keripy" in v for v in result.violations)
+
+    def test_platform_restriction(self):
+        """Platform not in allowed list should fail."""
+        rules = GovernanceRules(allowed_platforms=["Linux"])
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        current = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+            platform_info={"system": "Darwin"},
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert not result.compliant
+        assert any("Platform" in v for v in result.violations)
+
+    def test_multiple_violations(self):
+        """Multiple rule violations should all be reported."""
+        rules = GovernanceRules(
+            min_python_version="3.13.0",
+            min_keripy_version="2.0.0",
+            required_algorithms=["missing_algo"],
+            forbidden_algorithms=["blake3"],
+        )
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        current = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+            algorithm_gaids={"blake3": "E_BLAKE3"},
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert not result.compliant
+        assert len(result.violations) >= 4  # python, keripy, required, forbidden
+
+    def test_empty_rules_always_compliant(self):
+        """Empty governance rules should always pass."""
+        rules = GovernanceRules()
+        registry, runtime = self._make_registry_with_rules(rules)
+
+        current = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",
+            keripy_said="E_TEST",
+            hio_version="0.6.14",
+        )
+        result = registry.verify(runtime.gaid, current_manifest=current)
+        assert result.compliant
+
+    def test_governance_rules_serialization(self):
+        """GovernanceRules should round-trip through to_dict/from_dict."""
+        rules = GovernanceRules(
+            min_python_version="3.12.0",
+            max_python_version="3.13.99",
+            min_keripy_version="1.2.0",
+            max_keripy_version="1.99.0",
+            required_algorithms=["blake3", "ed25519"],
+            forbidden_algorithms=["sha256"],
+            allowed_platforms=["Darwin", "Linux"],
+        )
+        d = rules.to_dict()
+        restored = GovernanceRules.from_dict(d)
+        assert restored.min_python_version == "3.12.0"
+        assert restored.max_python_version == "3.13.99"
+        assert restored.required_algorithms == ["blake3", "ed25519"]
+        assert restored.forbidden_algorithms == ["sha256"]
+        assert restored.allowed_platforms == ["Darwin", "Linux"]
+
+
+class TestVersionChainIntegrity:
+    """Test RuntimeGAID version chain integrity."""
+
+    def test_version_chain_append_only(self):
+        """Version chain should be append-only."""
+        registry = RuntimeGAIDRegistry()
+        m1 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.2.0",
+            keripy_said="E_V1", hio_version="0.6.14",
+        )
+        runtime = registry.register("chain-test", m1,
+            governance_rules=GovernanceRules(min_keripy_version="1.0.0"),
+            version="1.0.0")
+
+        assert len(runtime.versions) == 1
+
+        m2 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.3.0",
+            keripy_said="E_V2", hio_version="0.6.14",
+        )
+        registry.rotate(runtime.gaid, m2, "2.0.0")
+
+        assert len(runtime.versions) == 2
+        assert runtime.versions[0].version == "1.0.0"
+        assert runtime.versions[1].version == "2.0.0"
+        assert runtime.current_version.version == "2.0.0"
+
+    def test_gaid_stable_through_rotations(self):
+        """GAID should remain stable through manifest rotations."""
+        registry = RuntimeGAIDRegistry()
+        m1 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.2.0",
+            keripy_said="E_V1", hio_version="0.6.14",
+        )
+        runtime = registry.register("stable-test", m1, version="1.0.0")
+        original_gaid = runtime.gaid
+
+        m2 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.3.0",
+            keripy_said="E_V2", hio_version="0.6.14",
+        )
+        registry.rotate(runtime.gaid, m2, "2.0.0")
+        assert runtime.gaid == original_gaid
+
+        m3 = RuntimeManifest(
+            python_version="3.13.0", keripy_version="1.4.0",
+            keripy_said="E_V3", hio_version="0.7.0",
+        )
+        registry.rotate(runtime.gaid, m3, "3.0.0")
+        assert runtime.gaid == original_gaid
+
+    def test_rotation_inherits_rules(self):
+        """Rotation without new rules should inherit current rules."""
+        registry = RuntimeGAIDRegistry()
+        rules = GovernanceRules(min_keripy_version="1.2.0", required_algorithms=["blake3"])
+        m1 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.2.0",
+            keripy_said="E_V1", hio_version="0.6.14",
+        )
+        runtime = registry.register("inherit-test", m1,
+            governance_rules=rules, version="1.0.0")
+
+        m2 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.3.0",
+            keripy_said="E_V2", hio_version="0.6.14",
+        )
+        new_ver = registry.rotate(runtime.gaid, m2, "2.0.0")
+        assert new_ver.governance_rules.min_keripy_version == "1.2.0"
+        assert new_ver.governance_rules.required_algorithms == ["blake3"]
+
+    def test_rotation_with_new_rules(self):
+        """Rotation with new rules should use new rules."""
+        registry = RuntimeGAIDRegistry()
+        m1 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.2.0",
+            keripy_said="E_V1", hio_version="0.6.14",
+        )
+        runtime = registry.register("newrules-test", m1,
+            governance_rules=GovernanceRules(min_keripy_version="1.0.0"),
+            version="1.0.0")
+
+        m2 = RuntimeManifest(
+            python_version="3.12.0", keripy_version="1.3.0",
+            keripy_said="E_V2", hio_version="0.6.14",
+        )
+        new_rules = GovernanceRules(min_keripy_version="1.3.0", required_algorithms=["ed25519"])
+        new_ver = registry.rotate(runtime.gaid, m2, "2.0.0", new_rules=new_rules)
+        assert new_ver.governance_rules.min_keripy_version == "1.3.0"
+        assert new_ver.governance_rules.required_algorithms == ["ed25519"]

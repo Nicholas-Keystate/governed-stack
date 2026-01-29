@@ -33,7 +33,6 @@ from typing import Dict, Any, Optional, List, Callable, TypeVar
 from datetime import datetime
 from dataclasses import dataclass, field, asdict
 from contextlib import contextmanager
-import fcntl
 
 logger = logging.getLogger(__name__)
 
@@ -49,76 +48,23 @@ from keri.core.coring import Diger, Saider, MtrDex
 from keri.core.signing import Salter
 from keri.vc import proving
 
-
-def compute_said(sad: dict, label: str = "d") -> str:
-    """Compute SAID using keripy's Saider."""
-    sad_copy = dict(sad)
-    sad_copy[label] = ""
-    return Saider(sad=sad_copy, label=label).qb64
-
-
-# Default paths
-KERI_AGENTS_PATH = Path.home() / ".keri-agents"
-
-# Master AID config path (in standard keripy location)
-MASTER_AID_CONFIG_PATH = Path.home() / ".keri" / "cf" / "claude-master.json"
+# Import base infrastructure from keri-infra (canonical location)
+from keri_infra import (
+    KERI_AGENTS_PATH,
+    MASTER_AID_CONFIG_PATH,
+    FileLock,
+    AuditEntry,
+    compute_said,
+    master_aid_configured,
+    get_master_aid_info,
+    get_master_aid_prefix,
+)
 
 T = TypeVar('T')
 
-
-@dataclass
-class AuditEntry:
-    """A single entry in the audit log."""
-    seq: int
-    agent_aid: str
-    parent_aid: Optional[str]
-    session_id: str
-    action: str
-    timestamp: str
-    credential_said: Optional[str] = None
-    content_said: Optional[str] = None
-    extra: Dict[str, Any] = field(default_factory=dict)
-
-
-class FileLock:
-    """
-    Process-safe file lock for coordinating KERI operations.
-
-    Uses fcntl.flock for Unix systems to ensure only one process
-    can hold the lock at a time.
-    """
-
-    def __init__(self, lock_path: Path):
-        self.lock_path = lock_path
-        self._fd = None
-
-    def acquire(self):
-        """Acquire exclusive lock."""
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            self._fd = open(self.lock_path, 'w')
-            fcntl.flock(self._fd.fileno(), fcntl.LOCK_EX)
-        except Exception:
-            if self._fd:
-                self._fd.close()
-                self._fd = None
-            raise
-
-    def release(self):
-        """Release lock."""
-        if self._fd:
-            fcntl.flock(self._fd.fileno(), fcntl.LOCK_UN)
-            self._fd.close()
-            self._fd = None
-
-    @contextmanager
-    def locked(self):
-        """Context manager for lock acquisition."""
-        try:
-            self.acquire()
-            yield
-        finally:
-            self.release()
+# Note: AuditEntry and FileLock are now imported from keri_infra above.
+# The following class extends the base keri-infra functionality with
+# HIO Doer lifecycle management specific to keri-sec.
 
 
 class KeriInfrastructure(Doer):
@@ -692,26 +638,5 @@ def reset_infrastructure():
 # =============================================================================
 # Master AID Integration
 # =============================================================================
-
-def master_aid_configured() -> bool:
-    """Check if a master AID is configured for delegation."""
-    return MASTER_AID_CONFIG_PATH.exists()
-
-
-def get_master_aid_info() -> Optional[Dict[str, Any]]:
-    """Get master AID configuration info."""
-    if not master_aid_configured():
-        return None
-
-    try:
-        with open(MASTER_AID_CONFIG_PATH) as f:
-            return json.load(f)
-    except Exception as e:
-        logger.warning(f"Failed to load master AID config: {e}")
-        return None
-
-
-def get_master_aid_prefix() -> Optional[str]:
-    """Get the master AID prefix."""
-    info = get_master_aid_info()
-    return info.get("prefix") if info else None
+# Note: master_aid_configured, get_master_aid_info, get_master_aid_prefix
+# are now imported from keri_infra at the top of this file.

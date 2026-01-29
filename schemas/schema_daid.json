@@ -1,5 +1,5 @@
 {
-  "$id": "ESchema_DAID_Schema_________________________",
+  "$id": "EESMictO5lMLyvturfKFRUMyHobxcKx0Ailw7_2FpmIU",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Schema DAID Credential",
   "description": "ACDC schema for governed ACDC schemas (meta-schema for schema governance)",
@@ -26,7 +26,7 @@
     "s": {
       "type": "string",
       "description": "Schema SAID (self-reference)",
-      "const": "ESchema_DAID_Schema_________________________"
+      "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },
     "a": {
       "type": "object",
@@ -63,30 +63,56 @@
         },
         "changeType": {
           "type": "string",
-          "enum": ["major", "minor", "patch"],
+          "enum": [
+            "major",
+            "minor",
+            "patch"
+          ],
           "description": "Type of change from previous version"
         },
         "breakingChanges": {
           "type": "array",
-          "items": {"type": "string"},
+          "items": {
+            "type": "string"
+          },
           "description": "List of breaking changes (for major versions)"
         },
         "status": {
           "type": "string",
-          "enum": ["active", "deprecated", "superseded"],
+          "enum": [
+            "active",
+            "deprecated",
+            "superseded"
+          ],
           "description": "Current schema status"
         },
         "deprecationNotice": {
           "type": "object",
           "description": "Deprecation details if deprecated",
           "properties": {
-            "reason": {"type": "string"},
-            "successor": {"type": "string", "description": "DAID of replacement schema"},
-            "deadline": {"type": "string", "format": "date-time"}
+            "reason": {
+              "type": "string"
+            },
+            "successor": {
+              "type": "string",
+              "description": "DAID of replacement schema"
+            },
+            "deadline": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         }
       },
-      "required": ["d", "dt", "name", "namespace", "contentSaid", "version", "status"]
+      "required": [
+        "d",
+        "dt",
+        "name",
+        "namespace",
+        "contentSaid",
+        "version",
+        "status"
+      ]
     },
     "e": {
       "type": "object",
@@ -96,28 +122,50 @@
           "type": "object",
           "description": "Edge to previous version (rotation chain)",
           "properties": {
-            "d": {"type": "string"},
-            "s": {"type": "string", "const": "ESchema_DAID_Schema_________________________"}
+            "d": {
+              "type": "string"
+            },
+            "s": {
+              "type": "string",
+              "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
           }
         },
         "successor": {
           "type": "object",
           "description": "Edge to successor schema (if deprecated)",
           "properties": {
-            "d": {"type": "string"},
-            "s": {"type": "string", "const": "ESchema_DAID_Schema_________________________"}
+            "d": {
+              "type": "string"
+            },
+            "s": {
+              "type": "string",
+              "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
           }
         },
         "extends": {
           "type": "object",
           "description": "Edge to schema this extends (inheritance)",
           "properties": {
-            "d": {"type": "string"},
-            "s": {"type": "string", "const": "ESchema_DAID_Schema_________________________"}
+            "d": {
+              "type": "string"
+            },
+            "s": {
+              "type": "string",
+              "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
           }
         }
       }
     }
   },
-  "required": ["v", "d", "i", "ri", "s", "a"]
+  "required": [
+    "v",
+    "d",
+    "i",
+    "ri",
+    "s",
+    "a"
+  ]
 }

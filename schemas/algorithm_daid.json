@@ -1,5 +1,5 @@
 {
-  "$id": "EAlgorithm_DAID_Schema_______________________",
+  "$id": "EDjCxLqtFqqTM8Pn5AydLWiXB2nZhbDtl74tHepDwoL8",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Algorithm DAID Credential",
   "description": "ACDC schema for governed cryptographic algorithms (GAIDs)",
@@ -26,7 +26,7 @@
     "s": {
       "type": "string",
       "description": "Schema SAID",
-      "const": "EAlgorithm_DAID_Schema_______________________"
+      "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
     },
     "a": {
       "type": "object",
@@ -47,7 +47,13 @@
         },
         "category": {
           "type": "string",
-          "enum": ["hash", "signature", "encryption", "kdf", "mac"],
+          "enum": [
+            "hash",
+            "signature",
+            "encryption",
+            "kdf",
+            "mac"
+          ],
           "description": "Algorithm category"
         },
         "cesrCode": {
@@ -72,20 +78,40 @@
         },
         "status": {
           "type": "string",
-          "enum": ["active", "deprecated", "superseded", "revoked"],
+          "enum": [
+            "active",
+            "deprecated",
+            "superseded",
+            "revoked"
+          ],
           "description": "Current algorithm status"
         },
         "deprecationNotice": {
           "type": "object",
           "description": "Deprecation details if deprecated",
           "properties": {
-            "reason": {"type": "string"},
-            "successor": {"type": "string", "description": "DAID of replacement algorithm"},
-            "deadline": {"type": "string", "format": "date-time"}
+            "reason": {
+              "type": "string"
+            },
+            "successor": {
+              "type": "string",
+              "description": "DAID of replacement algorithm"
+            },
+            "deadline": {
+              "type": "string",
+              "format": "date-time"
+            }
           }
         }
       },
-      "required": ["d", "dt", "name", "category", "version", "status"]
+      "required": [
+        "d",
+        "dt",
+        "name",
+        "category",
+        "version",
+        "status"
+      ]
     },
     "e": {
       "type": "object",
@@ -95,27 +121,46 @@
           "type": "object",
           "description": "Edge to previous version (rotation chain)",
           "properties": {
-            "d": {"type": "string"},
-            "s": {"type": "string", "const": "EAlgorithm_DAID_Schema_______________________"}
+            "d": {
+              "type": "string"
+            },
+            "s": {
+              "type": "string",
+              "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
           }
         },
         "successor": {
           "type": "object",
           "description": "Edge to successor algorithm (if deprecated)",
           "properties": {
-            "d": {"type": "string"},
-            "s": {"type": "string", "const": "EAlgorithm_DAID_Schema_______________________"}
+            "d": {
+              "type": "string"
+            },
+            "s": {
+              "type": "string",
+              "const": "EAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            }
           }
         },
         "specification": {
           "type": "object",
           "description": "Edge to specification document SAID",
           "properties": {
-            "d": {"type": "string"}
+            "d": {
+              "type": "string"
+            }
           }
         }
       }
     }
   },
-  "required": ["v", "d", "i", "ri", "s", "a"]
+  "required": [
+    "v",
+    "d",
+    "i",
+    "ri",
+    "s",
+    "a"
+  ]
 }

@@ -45,19 +45,40 @@ Credit:
     - KERI by Samuel M. Smith - https://keri.one
 """
 
+# Re-export base infrastructure from keri-infra (canonical location)
+from keri_infra import (
+    # Storage layout
+    KERI_AGENTS_PATH,
+    StorageLayout,
+    get_storage_layout,
+    # Locking
+    FileLock,
+    # Audit
+    AuditEntry,
+    AuditLog,
+    get_audit_log,
+    # Master AID
+    MASTER_AID_CONFIG_PATH,
+    master_aid_configured,
+    get_master_aid_info,
+    get_master_aid_prefix,
+    # SAID helpers
+    compute_said,
+    compute_digest,
+    verify_said,
+    # Fracture detection (base)
+    KERIConsumer as KeriConsumer,  # Alias for backward compat
+    FractureReport,
+    register_consumer,
+    check_for_fractures as _check_for_fractures,
+    reset_registry,
+)
+
+# keri-sec specific infrastructure (extends keri-infra)
 from keri_sec.keri.infrastructure import (
     KeriInfrastructure,
     get_infrastructure,
     reset_infrastructure,
-    KERI_AGENTS_PATH,
-    AuditEntry,
-    FileLock,
-    compute_said,
-    # Master AID integration
-    master_aid_configured,
-    get_master_aid_info,
-    get_master_aid_prefix,
-    MASTER_AID_CONFIG_PATH,
 )
 
 from keri_sec.keri.runtime import (
@@ -69,12 +90,9 @@ from keri_sec.keri.runtime import (
 )
 
 from keri_sec.keri.registry import (
-    KeriConsumer,
-    FractureReport,
     register_keri_consumer,
     get_registered_consumers,
     check_for_fractures,
-    reset_registry,
 )
 
 from keri_sec.keri.said_ref import (

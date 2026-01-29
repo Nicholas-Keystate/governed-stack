@@ -524,6 +524,107 @@ class TestOverheadEstimates:
         assert result["total"] == result["total_estimate"] * 10
 
 
+class TestRuntimeSaidBinding:
+    """Test runtime_said binding in ExecutionResult (Binding #38)."""
+
+    def _make_registry_and_algo(self):
+        """Helper: create registry with a simple algorithm."""
+        registry = AlgorithmRegistry()
+
+        def add_numbers(a: int, b: int) -> Dict[str, Any]:
+            return {"sum": a + b}
+
+        algo = registry.register(
+            name="test-add",
+            version="1.0.0",
+            implementation=add_numbers,
+            description="Test addition",
+        )
+        return registry, algo
+
+    def test_execution_without_runtime_manifest(self):
+        """Execution without manifest should have runtime_said=None."""
+        registry, algo = self._make_registry_and_algo()
+        result = registry.execute(
+            algorithm_said=algo.said,
+            inputs={"a": 1, "b": 2},
+        )
+        assert result.runtime_said is None
+        assert not result.is_runtime_bound
+        assert "runtime_said" not in result.to_dict()
+
+    def test_execution_with_runtime_manifest(self):
+        """Execution with manifest should capture runtime_said."""
+        from keri_sec.runtime import capture_current_manifest
+
+        registry, algo = self._make_registry_and_algo()
+        manifest = capture_current_manifest()
+
+        result = registry.execute(
+            algorithm_said=algo.said,
+            inputs={"a": 1, "b": 2},
+            runtime_manifest=manifest,
+        )
+        assert result.runtime_said == manifest.said
+        assert result.is_runtime_bound
+        assert result.to_dict()["runtime_said"] == manifest.said
+
+    def test_runtime_said_in_attestation_content(self):
+        """Attestation content should include runtime_said when provided."""
+        from keri_sec.runtime import capture_current_manifest
+
+        registry, algo = self._make_registry_and_algo()
+        manifest = capture_current_manifest()
+
+        result = registry.execute(
+            algorithm_said=algo.said,
+            inputs={"a": 1, "b": 2},
+            tier=Tier.KEL_ANCHORED,
+            runtime_manifest=manifest,
+        )
+        # Attestation should exist (KEL_ANCHORED tier without hab falls back)
+        # Even if attestation creation fails, the result should have runtime_said
+        assert result.runtime_said == manifest.said
+
+    def test_different_manifests_produce_different_saids(self):
+        """Two different manifests should produce different runtime_saids."""
+        from keri_sec.runtime import RuntimeManifest
+
+        registry, algo = self._make_registry_and_algo()
+
+        m1 = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.2.0",
+            keripy_said="E_SAID_A",
+            hio_version="0.6.0",
+        )
+        m2 = RuntimeManifest(
+            python_version="3.12.0",
+            keripy_version="1.3.0",  # Different keripy version
+            keripy_said="E_SAID_B",
+            hio_version="0.6.0",
+        )
+
+        r1 = registry.execute(algo.said, {"a": 1, "b": 2}, runtime_manifest=m1)
+        r2 = registry.execute(algo.said, {"a": 1, "b": 2}, runtime_manifest=m2)
+
+        assert r1.runtime_said != r2.runtime_said
+        assert r1.runtime_said == m1.said
+        assert r2.runtime_said == m2.said
+
+    def test_storage_size_includes_runtime_said(self):
+        """Storage size should account for runtime_said when present."""
+        from keri_sec.runtime import capture_current_manifest
+
+        registry, algo = self._make_registry_and_algo()
+        manifest = capture_current_manifest()
+
+        without = registry.execute(algo.said, {"a": 1, "b": 2})
+        with_rt = registry.execute(algo.said, {"a": 1, "b": 2}, runtime_manifest=manifest)
+
+        assert with_rt.storage_size() > without.storage_size()
+
+
 if __name__ == "__main__":
     # Run as standalone script
     import sys

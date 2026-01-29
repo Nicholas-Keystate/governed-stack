@@ -37,9 +37,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
+
+from keri_governance.cardinal import Operation
 
 from ..attestation import Tier, Attestation, create_attestation, compute_said
+from ..base_registry import BaseGAIDRegistry
+
+if TYPE_CHECKING:
+    from ..governance.gate import GovernanceGate
 
 logger = logging.getLogger(__name__)
 
@@ -156,7 +162,7 @@ class SchemaDAID:
         }
 
 
-class SchemaDAIDRegistry:
+class SchemaDAIDRegistry(BaseGAIDRegistry[SchemaDAID]):
     """
     Registry of governed schemas with DAID identity.
 
@@ -168,11 +174,32 @@ class SchemaDAIDRegistry:
     - Resolution by DAID, qualified name, or content SAID
     """
 
-    def __init__(self):
-        self._schemas: Dict[str, SchemaDAID] = {}  # daid -> SchemaDAID
-        self._by_name: Dict[str, str] = {}  # qualified_name -> daid
+    def __init__(self, governance_gate: Optional["GovernanceGate"] = None):
+        super().__init__(governance_gate=governance_gate)
         self._by_content_said: Dict[str, str] = {}  # content_said -> daid
-        self._lock = threading.Lock()
+
+    # -- Base class hooks --
+
+    def _resolve_extra(self, identifier: str) -> Optional[SchemaDAID]:
+        # Bare name without namespace (searches all namespaces)
+        if ":" not in identifier:
+            for qualified_name, daid in self._by_name.items():
+                if qualified_name.endswith(f":{identifier}"):
+                    return self._entities.get(daid)
+
+        # Content SAID lookup
+        if identifier in self._by_content_said:
+            daid = self._by_content_said[identifier]
+            return self._entities.get(daid)
+        return None
+
+    def _apply_deprecation(self, obj, reason, successor, deadline):
+        obj.status = SchemaStatus.DEPRECATED
+        obj.deprecation = DeprecationNotice(
+            reason=reason,
+            successor_daid=successor,
+            deadline=deadline,
+        )
 
     def register(
         self,
@@ -198,6 +225,8 @@ class SchemaDAIDRegistry:
         Returns:
             Registered SchemaDAID
         """
+        self._enforce(Operation.REGISTER, issuer_hab=issuer_hab)
+
         # Extract credential type from schema
         credential_type = content.get("credentialType", name)
 
@@ -249,9 +278,8 @@ class SchemaDAIDRegistry:
 
         qualified_name = schema.qualified_name
 
+        self._store(daid, qualified_name, schema)
         with self._lock:
-            self._schemas[daid] = schema
-            self._by_name[qualified_name] = daid
             self._by_content_said[content_said] = daid
 
         logger.info(f"Registered schema DAID: {qualified_name} -> {daid[:16]}...")
@@ -289,49 +317,6 @@ class SchemaDAIDRegistry:
             issuer_hab=issuer_hab,
         )
 
-    def resolve(
-        self,
-        identifier: str,
-        version: Optional[str] = None,
-    ) -> Optional[SchemaDAID]:
-        """
-        Resolve schema by DAID, qualified name, or content SAID.
-
-        Args:
-            identifier: DAID prefix, 'namespace:name', or content SAID
-            version: Optional specific version to resolve
-
-        Returns:
-            SchemaDAID or None if not found
-        """
-        with self._lock:
-            # Try exact DAID match
-            if identifier in self._schemas:
-                return self._schemas[identifier]
-
-            # Try DAID prefix match
-            for daid, schema in self._schemas.items():
-                if daid.startswith(identifier):
-                    return schema
-
-            # Try qualified name lookup
-            if identifier in self._by_name:
-                daid = self._by_name[identifier]
-                return self._schemas.get(daid)
-
-            # Try name without namespace (searches all namespaces)
-            if ":" not in identifier:
-                for qualified_name, daid in self._by_name.items():
-                    if qualified_name.endswith(f":{identifier}"):
-                        return self._schemas.get(daid)
-
-            # Try content SAID lookup
-            if identifier in self._by_content_said:
-                daid = self._by_content_said[identifier]
-                return self._schemas.get(daid)
-
-        return None
-
     def rotate(
         self,
         daid: str,
@@ -357,6 +342,8 @@ class SchemaDAIDRegistry:
         Returns:
             The new SchemaVersion
         """
+        self._enforce(Operation.ROTATE, issuer_hab=issuer_hab)
+
         schema = self.resolve(daid)
         if schema is None:
             raise ValueError(f"Schema not found: {daid}")
@@ -412,30 +399,12 @@ class SchemaDAIDRegistry:
         deadline: Optional[str] = None,
         issuer_hab: Any = None,
     ) -> None:
-        """
-        Deprecate a schema.
-
-        Args:
-            daid: Schema DAID
-            reason: Deprecation reason
-            successor_daid: DAID of replacement schema
-            deadline: Migration deadline (ISO format)
-            issuer_hab: Issuer for attestation
-        """
-        schema = self.resolve(daid)
-        if schema is None:
-            raise ValueError(f"Schema not found: {daid}")
-
-        with self._lock:
-            schema.status = SchemaStatus.DEPRECATED
-            schema.deprecation = DeprecationNotice(
-                reason=reason,
-                successor_daid=successor_daid,
-                deadline=deadline,
-            )
+        """Deprecate a schema."""
+        super().deprecate(daid, reason, successor=successor_daid, deadline=deadline, issuer_hab=issuer_hab)
 
         # Create deprecation attestation
-        if issuer_hab:
+        schema = self.resolve(daid)
+        if issuer_hab and schema:
             try:
                 create_attestation(
                     tier=Tier.KEL_ANCHORED,
@@ -452,15 +421,12 @@ class SchemaDAIDRegistry:
             except Exception as e:
                 logger.warning(f"Deprecation attestation failed: {e}")
 
-        logger.warning(f"Deprecated schema: {schema.qualified_name} - {reason}")
-
     def list_schemas(self, namespace: Optional[str] = None) -> List[SchemaDAID]:
         """List all schemas, optionally filtered by namespace."""
-        with self._lock:
-            schemas = list(self._schemas.values())
-            if namespace:
-                schemas = [s for s in schemas if s.namespace == namespace]
-            return schemas
+        schemas = self.list_all()
+        if namespace:
+            schemas = [s for s in schemas if s.namespace == namespace]
+        return schemas
 
     def get_content_for_version(
         self,
@@ -496,12 +462,20 @@ _registry: Optional[SchemaDAIDRegistry] = None
 _registry_lock = threading.Lock()
 
 
-def get_schema_registry() -> SchemaDAIDRegistry:
-    """Get the schema DAID registry singleton."""
+def get_schema_registry(
+    governance_gate: Optional["GovernanceGate"] = None,
+) -> SchemaDAIDRegistry:
+    """Get the schema DAID registry singleton.
+
+    Args:
+        governance_gate: Optional gate to enable cardinal rule enforcement.
+    """
     global _registry
     with _registry_lock:
         if _registry is None:
             _registry = SchemaDAIDRegistry()
+            if governance_gate is not None:
+                _registry.set_governance_gate(governance_gate)
         return _registry
 
 

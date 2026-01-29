@@ -48,6 +48,7 @@ class ExecutionResult:
     result: Any
     input_said: str
     output_said: str
+    runtime_said: Optional[str] = None  # Binds execution to runtime environment
     attestation: Optional[Attestation] = None
     executed_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -55,8 +56,13 @@ class ExecutionResult:
     def is_attested(self) -> bool:
         return self.attestation is not None
 
+    @property
+    def is_runtime_bound(self) -> bool:
+        """Whether this execution is bound to a runtime manifest."""
+        return self.runtime_said is not None
+
     def to_dict(self) -> Dict[str, Any]:
-        return {
+        d = {
             "algorithm_said": self.algorithm_said,
             "result": self.result,
             "input_said": self.input_said,
@@ -64,6 +70,9 @@ class ExecutionResult:
             "attestation": self.attestation.to_dict() if self.attestation else None,
             "executed_at": self.executed_at,
         }
+        if self.runtime_said is not None:
+            d["runtime_said"] = self.runtime_said
+        return d
 
     def storage_size(self) -> int:
         """Estimate storage size in bytes."""
@@ -73,6 +82,8 @@ class ExecutionResult:
             "output_said": self.output_said,
             "executed_at": self.executed_at,
         }))
+        if self.runtime_said:
+            base += len(self.runtime_said) + 20  # key + value
         if self.attestation:
             base += self.attestation.storage_size()
         return base
@@ -169,6 +180,7 @@ class AlgorithmRegistry:
         tier: Tier = Tier.SAID_ONLY,
         schema_said: Optional[str] = None,
         credential_service: Any = None,
+        runtime_manifest: Any = None,
     ) -> ExecutionResult:
         """
         Execute an algorithm with optional attestation.
@@ -180,6 +192,7 @@ class AlgorithmRegistry:
             tier: Attestation tier
             schema_said: Schema for TEL attestation
             credential_service: Service for TEL attestation
+            runtime_manifest: RuntimeManifest to bind execution to environment
 
         Returns:
             ExecutionResult with result and optional attestation
@@ -187,6 +200,11 @@ class AlgorithmRegistry:
         algorithm = self.get(algorithm_said)
         if algorithm is None:
             raise ValueError(f"Algorithm not found: {algorithm_said}")
+
+        # Capture runtime SAID if manifest provided
+        runtime_said = None
+        if runtime_manifest is not None:
+            runtime_said = runtime_manifest.said
 
         # Compute input SAID
         input_said = compute_said(inputs)
@@ -211,6 +229,8 @@ class AlgorithmRegistry:
                 "output_said": output_said,
                 "outcome": "success",
             }
+            if runtime_said is not None:
+                attestation_content["runtime_said"] = runtime_said
 
             try:
                 attestation = create_attestation(
@@ -228,6 +248,7 @@ class AlgorithmRegistry:
             result=result,
             input_said=input_said,
             output_said=output_said,
+            runtime_said=runtime_said,
             attestation=attestation,
         )
 

@@ -128,7 +128,7 @@ def trust_boundary(
                 }
                 try:
                     attestation = create_attestation(
-                        tier=min(tier, Tier.KEL_ANCHORED),  # Don't TEL-anchor errors
+                        tier=max(tier, Tier.KEL_ANCHORED),  # Don't TEL-anchor errors
                         content=error_content,
                         issuer_hab=issuer_hab,
                     )

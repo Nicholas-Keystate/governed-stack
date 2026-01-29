@@ -37,9 +37,15 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+from keri_governance.cardinal import Operation
 
 from ..attestation import Tier, Attestation, create_attestation, compute_said
+from ..base_registry import BaseGAIDRegistry
+
+if TYPE_CHECKING:
+    from ..governance.gate import GovernanceGate
 from .manifest import RuntimeManifest, capture_current_manifest
 
 logger = logging.getLogger(__name__)
@@ -204,7 +210,7 @@ class VerificationResult:
         }
 
 
-class RuntimeGAIDRegistry:
+class RuntimeGAIDRegistry(BaseGAIDRegistry[RuntimeGAID]):
     """
     Registry of governed runtime configurations.
 
@@ -215,17 +221,23 @@ class RuntimeGAIDRegistry:
     - Current environment verification
     """
 
-    def __init__(self, algorithm_registry=None):
-        """
-        Initialize registry.
-
-        Args:
-            algorithm_registry: Optional AlgorithmDAIDRegistry for algorithm lookups
-        """
-        self._runtimes: Dict[str, RuntimeGAID] = {}  # gaid -> RuntimeGAID
-        self._by_name: Dict[str, str] = {}  # name -> gaid
+    def __init__(
+        self,
+        algorithm_registry=None,
+        governance_gate: Optional["GovernanceGate"] = None,
+    ):
+        super().__init__(governance_gate=governance_gate)
         self._algorithm_registry = algorithm_registry
-        self._lock = threading.Lock()
+
+    # -- Base class hooks --
+
+    def _apply_deprecation(self, obj, reason, successor, deadline):
+        obj.status = RuntimeStatus.DEPRECATED
+        obj.deprecation = DeprecationNotice(
+            reason=reason,
+            successor_gaid=successor,
+            migration_deadline=deadline,
+        )
 
     def register(
         self,
@@ -250,6 +262,8 @@ class RuntimeGAIDRegistry:
         Returns:
             Registered RuntimeGAID
         """
+        self._enforce(Operation.REGISTER, issuer_hab=issuer_hab)
+
         rules = governance_rules or GovernanceRules()
 
         # Compute GAID from inception data
@@ -293,39 +307,10 @@ class RuntimeGAIDRegistry:
             versions=[initial_version],
         )
 
-        with self._lock:
-            self._runtimes[gaid] = runtime
-            self._by_name[name] = gaid
+        self._store(gaid, name, runtime)
 
         logger.info(f"Registered runtime GAID: {name} -> {gaid[:16]}...")
         return runtime
-
-    def resolve(self, identifier: str) -> Optional[RuntimeGAID]:
-        """
-        Resolve runtime by GAID or name.
-
-        Args:
-            identifier: GAID prefix or name
-
-        Returns:
-            RuntimeGAID or None if not found
-        """
-        with self._lock:
-            # Try exact GAID match
-            if identifier in self._runtimes:
-                return self._runtimes[identifier]
-
-            # Try GAID prefix match
-            for gaid, runtime in self._runtimes.items():
-                if gaid.startswith(identifier):
-                    return runtime
-
-            # Try name lookup
-            if identifier in self._by_name:
-                gaid = self._by_name[identifier]
-                return self._runtimes.get(gaid)
-
-        return None
 
     def rotate(
         self,
@@ -348,6 +333,8 @@ class RuntimeGAIDRegistry:
         Returns:
             The new RuntimeVersion
         """
+        self._enforce(Operation.ROTATE, issuer_hab=issuer_hab)
+
         runtime = self.resolve(gaid)
         if runtime is None:
             raise ValueError(f"Runtime not found: {gaid}")
@@ -507,19 +494,11 @@ class RuntimeGAIDRegistry:
         issuer_hab: Any = None,
     ) -> None:
         """Deprecate a runtime GAID."""
+        super().deprecate(gaid, reason, successor=successor_gaid, deadline=migration_deadline, issuer_hab=issuer_hab)
+
+        # Create deprecation attestation
         runtime = self.resolve(gaid)
-        if runtime is None:
-            raise ValueError(f"Runtime not found: {gaid}")
-
-        with self._lock:
-            runtime.status = RuntimeStatus.DEPRECATED
-            runtime.deprecation = DeprecationNotice(
-                reason=reason,
-                successor_gaid=successor_gaid,
-                migration_deadline=migration_deadline,
-            )
-
-        if issuer_hab:
+        if issuer_hab and runtime:
             try:
                 create_attestation(
                     tier=Tier.KEL_ANCHORED,
@@ -536,15 +515,9 @@ class RuntimeGAIDRegistry:
             except Exception as e:
                 logger.warning(f"Deprecation attestation failed: {e}")
 
-        logger.warning(f"Deprecated runtime: {runtime.name} - {reason}")
-
     def list_runtimes(self, include_deprecated: bool = False) -> List[RuntimeGAID]:
         """List all registered runtimes."""
-        with self._lock:
-            runtimes = list(self._runtimes.values())
-            if not include_deprecated:
-                runtimes = [r for r in runtimes if not r.is_deprecated]
-            return runtimes
+        return self.list_all(include_deprecated=include_deprecated)
 
 
 # Module-level singleton
@@ -552,12 +525,22 @@ _registry: Optional[RuntimeGAIDRegistry] = None
 _registry_lock = threading.Lock()
 
 
-def get_runtime_gaid_registry(algorithm_registry=None) -> RuntimeGAIDRegistry:
-    """Get the runtime GAID registry singleton."""
+def get_runtime_gaid_registry(
+    algorithm_registry=None,
+    governance_gate: Optional["GovernanceGate"] = None,
+) -> RuntimeGAIDRegistry:
+    """Get the runtime GAID registry singleton.
+
+    Args:
+        algorithm_registry: Optional AlgorithmDAIDRegistry for algorithm lookups.
+        governance_gate: Optional gate to enable cardinal rule enforcement.
+    """
     global _registry
     with _registry_lock:
         if _registry is None:
             _registry = RuntimeGAIDRegistry(algorithm_registry=algorithm_registry)
+            if governance_gate is not None:
+                _registry.set_governance_gate(governance_gate)
         return _registry
 
 

@@ -35,9 +35,15 @@ import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple
+
+from keri_governance.cardinal import Operation
 
 from ..attestation import Tier, Attestation, create_attestation, compute_said
+from ..base_registry import BaseGAIDRegistry
+
+if TYPE_CHECKING:
+    from ..governance.gate import GovernanceGate
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +145,7 @@ class AlgorithmDAID:
         }
 
 
-class AlgorithmDAIDRegistry:
+class AlgorithmDAIDRegistry(BaseGAIDRegistry[AlgorithmDAID]):
     """
     Registry of governed algorithms with DAID identity.
 
@@ -147,14 +153,30 @@ class AlgorithmDAIDRegistry:
     - Registration with computed DAID
     - Version rotation (append-only)
     - Deprecation with successor references
-    - Resolution by DAID prefix
+    - Resolution by DAID prefix, name, or CESR code
     """
 
-    def __init__(self):
-        self._algorithms: Dict[str, AlgorithmDAID] = {}  # daid -> AlgorithmDAID
-        self._by_name: Dict[str, str] = {}  # name -> daid
+    def __init__(self, governance_gate: Optional["GovernanceGate"] = None):
+        super().__init__(governance_gate=governance_gate)
         self._by_cesr_code: Dict[str, str] = {}  # code -> daid
-        self._lock = threading.Lock()
+
+    # -- Base class hooks --
+
+    def _resolve_extra(self, identifier: str) -> Optional[AlgorithmDAID]:
+        if identifier in self._by_cesr_code:
+            daid = self._by_cesr_code[identifier]
+            return self._entities.get(daid)
+        return None
+
+    def _apply_deprecation(self, obj, reason, successor, deadline):
+        obj.status = AlgorithmStatus.DEPRECATED
+        obj.deprecation = DeprecationNotice(
+            reason=reason,
+            successor_daid=successor,
+            deadline=deadline,
+        )
+
+    # -- Domain methods --
 
     def register(
         self,
@@ -172,20 +194,9 @@ class AlgorithmDAIDRegistry:
 
         The DAID is computed from the inception data (name, category, initial spec)
         and remains stable across future rotations.
-
-        Args:
-            name: Canonical algorithm name (e.g., 'blake3', 'sha3-256')
-            category: Algorithm category (hash, signature, etc.)
-            version: Initial version string
-            spec_said: SAID of algorithm specification
-            implementation: Optional callable that implements the algorithm
-            cesr_code: CESR derivation code if applicable
-            security_level: Security level in bits
-            issuer_hab: Issuer for attestation
-
-        Returns:
-            Registered AlgorithmDAID
         """
+        self._enforce(Operation.REGISTER, issuer_hab=issuer_hab)
+
         # Compute DAID from inception data
         inception = {
             "name": name,
@@ -228,47 +239,13 @@ class AlgorithmDAIDRegistry:
             versions=[initial_version],
         )
 
+        self._store(daid, name, algorithm)
         with self._lock:
-            self._algorithms[daid] = algorithm
-            self._by_name[name] = daid
             if cesr_code:
                 self._by_cesr_code[cesr_code] = daid
 
         logger.info(f"Registered algorithm DAID: {name} -> {daid[:16]}...")
         return algorithm
-
-    def resolve(self, identifier: str, version: Optional[str] = None) -> Optional[AlgorithmDAID]:
-        """
-        Resolve algorithm by DAID, name, or CESR code.
-
-        Args:
-            identifier: DAID prefix, name, or CESR code
-            version: Optional specific version to resolve
-
-        Returns:
-            AlgorithmDAID or None if not found
-        """
-        with self._lock:
-            # Try exact DAID match
-            if identifier in self._algorithms:
-                return self._algorithms[identifier]
-
-            # Try DAID prefix match
-            for daid, algo in self._algorithms.items():
-                if daid.startswith(identifier):
-                    return algo
-
-            # Try name lookup
-            if identifier in self._by_name:
-                daid = self._by_name[identifier]
-                return self._algorithms.get(daid)
-
-            # Try CESR code lookup
-            if identifier in self._by_cesr_code:
-                daid = self._by_cesr_code[identifier]
-                return self._algorithms.get(daid)
-
-        return None
 
     def rotate(
         self,
@@ -282,17 +259,9 @@ class AlgorithmDAIDRegistry:
         Rotate an algorithm to a new version.
 
         This is an append-only operation - old versions remain accessible.
-
-        Args:
-            daid: Algorithm DAID (or prefix)
-            new_version: New version string
-            new_spec_said: SAID of new specification
-            implementation: New implementation callable
-            issuer_hab: Issuer for attestation
-
-        Returns:
-            The new AlgorithmVersion
         """
+        self._enforce(Operation.ROTATE, issuer_hab=issuer_hab)
+
         algorithm = self.resolve(daid)
         if algorithm is None:
             raise ValueError(f"Algorithm not found: {daid}")
@@ -337,30 +306,12 @@ class AlgorithmDAIDRegistry:
         deadline: Optional[str] = None,
         issuer_hab: Any = None,
     ) -> None:
-        """
-        Deprecate an algorithm.
-
-        Args:
-            daid: Algorithm DAID
-            reason: Deprecation reason
-            successor_daid: DAID of replacement algorithm
-            deadline: Migration deadline (ISO format)
-            issuer_hab: Issuer for attestation
-        """
-        algorithm = self.resolve(daid)
-        if algorithm is None:
-            raise ValueError(f"Algorithm not found: {daid}")
-
-        with self._lock:
-            algorithm.status = AlgorithmStatus.DEPRECATED
-            algorithm.deprecation = DeprecationNotice(
-                reason=reason,
-                successor_daid=successor_daid,
-                deadline=deadline,
-            )
+        """Deprecate an algorithm."""
+        super().deprecate(daid, reason, successor=successor_daid, deadline=deadline, issuer_hab=issuer_hab)
 
         # Create deprecation attestation
-        if issuer_hab:
+        algorithm = self.resolve(daid)
+        if issuer_hab and algorithm:
             try:
                 create_attestation(
                     tier=Tier.KEL_ANCHORED,
@@ -377,15 +328,12 @@ class AlgorithmDAIDRegistry:
             except Exception as e:
                 logger.warning(f"Deprecation attestation failed: {e}")
 
-        logger.warning(f"Deprecated algorithm: {algorithm.name} - {reason}")
-
     def list_algorithms(self, category: Optional[AlgorithmCategory] = None) -> List[AlgorithmDAID]:
         """List all algorithms, optionally filtered by category."""
-        with self._lock:
-            algos = list(self._algorithms.values())
-            if category:
-                algos = [a for a in algos if a.category == category]
-            return algos
+        algos = self.list_all()
+        if category:
+            algos = [a for a in algos if a.category == category]
+        return algos
 
     def execute(
         self,
@@ -455,19 +403,26 @@ _registry: Optional[AlgorithmDAIDRegistry] = None
 _registry_lock = threading.Lock()
 
 
-def get_algorithm_daid_registry() -> AlgorithmDAIDRegistry:
-    """Get the algorithm DAID registry singleton with core algorithms registered."""
+def get_algorithm_daid_registry(
+    governance_gate: Optional["GovernanceGate"] = None,
+) -> AlgorithmDAIDRegistry:
+    """Get the algorithm DAID registry singleton with core algorithms registered.
+
+    Args:
+        governance_gate: Optional gate to enable cardinal rule enforcement.
+            Applied after genesis registrations (two-phase lifecycle).
+    """
     global _registry
     with _registry_lock:
         if _registry is None:
-            _registry = AlgorithmDAIDRegistry()
+            _registry = AlgorithmDAIDRegistry()  # ungoverned genesis
 
             # Register core cryptographic algorithms
             _registry.register(
                 name="blake3",
                 category=AlgorithmCategory.HASH,
                 version="1.3.0",
-                spec_said="EBLAKE3_SPEC_v1_3_0____________________",
+                spec_said="EHsiY2F0ZWdvcnkiOiJoYXNoIiwibmFtZSI6IkJMQUtF",
                 implementation=_blake3_hash,
                 cesr_code="E",  # CESR code for Blake3-256
                 security_level=256,
@@ -477,7 +432,7 @@ def get_algorithm_daid_registry() -> AlgorithmDAIDRegistry:
                 name="sha3-256",
                 category=AlgorithmCategory.HASH,
                 version="1.0.0",
-                spec_said="ESHA3_256_SPEC_FIPS_202________________",
+                spec_said="EHsiY2F0ZWdvcnkiOiJoYXNoIiwibmFtZSI6IlNIQTMt",
                 implementation=_sha3_256_hash,
                 cesr_code="H",  # CESR code for SHA3-256
                 security_level=256,
@@ -487,11 +442,15 @@ def get_algorithm_daid_registry() -> AlgorithmDAIDRegistry:
                 name="sha256",
                 category=AlgorithmCategory.HASH,
                 version="1.0.0",
-                spec_said="ESHA256_SPEC_FIPS_180_4________________",
+                spec_said="EHsiY2F0ZWdvcnkiOiJoYXNoIiwibmFtZSI6IlNIQS0y",
                 implementation=_sha256_hash,
                 cesr_code="I",  # CESR code for SHA2-256
                 security_level=128,  # Quantum security level
             )
+
+            # Enable governance after genesis registrations
+            if governance_gate is not None:
+                _registry.set_governance_gate(governance_gate)
 
         return _registry
 

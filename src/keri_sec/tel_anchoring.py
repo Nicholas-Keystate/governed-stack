@@ -48,9 +48,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Schema SAIDs (placeholder - compute actual SAIDs on first use)
-STACK_SCHEMA_SAID = "EStack_Cred_Schema________________________"
-WORKSPACE_SCHEMA_SAID = "EWorkspace_Schema_________________________"
+# Schema SAIDs (computed from schemas/ via Saider.saidify with label="$id")
+STACK_SCHEMA_SAID = "EHofe890uUQJWD6UhU5XDzHrVHMPuqKtDW9McCp4pSsl"
+WORKSPACE_SCHEMA_SAID = "EDqrtt3vaINXFk7SbM-E_gEKBU4-NegmgU0hdowSg_jN"
 
 # Try to import ai-orchestrator's credential service
 _CREDENTIAL_SERVICE_AVAILABLE = False

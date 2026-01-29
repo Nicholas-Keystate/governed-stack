@@ -28,6 +28,14 @@ from .cardinal_checker_bridge import (
     GovernedCardinalChecker,
 )
 
+from .gate import (
+    GovernanceGate,
+    GovernanceViolation,
+    tier_to_strength,
+    strength_to_tier,
+    infer_strength,
+)
+
 __all__ = [
     # Cardinal GAID
     "CardinalRuleSetStatus",
@@ -46,4 +54,10 @@ __all__ = [
     # Checker Bridge
     "GovernedCheckResult",
     "GovernedCardinalChecker",
+    # Governance Gate
+    "GovernanceGate",
+    "GovernanceViolation",
+    "tier_to_strength",
+    "strength_to_tier",
+    "infer_strength",
 ]

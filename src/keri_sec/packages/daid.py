@@ -40,9 +40,15 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+
+from keri_governance.cardinal import Operation
 
 from ..attestation import Tier, Attestation, create_attestation, compute_said
+from ..base_registry import BaseGAIDRegistry
+
+if TYPE_CHECKING:
+    from ..governance.gate import GovernanceGate
 
 logger = logging.getLogger(__name__)
 
@@ -183,7 +189,7 @@ class VerificationResult:
     warnings: List[str] = field(default_factory=list)
 
 
-class PackageDAIDRegistry:
+class PackageDAIDRegistry(BaseGAIDRegistry[PackageDAID]):
     """
     Registry of governed packages with DAID identity.
 
@@ -195,23 +201,35 @@ class PackageDAIDRegistry:
     - Resolution by DAID, name, or PyPI name
     """
 
-    def __init__(self, base_path: Optional[Path] = None):
-        """
-        Initialize package registry.
-
-        Args:
-            base_path: Path for persisting registry (default: ~/.keri-sec/packages/)
-        """
-        self._packages: Dict[str, PackageDAID] = {}  # daid -> PackageDAID
-        self._by_name: Dict[str, str] = {}  # name -> daid
+    def __init__(
+        self,
+        base_path: Optional[Path] = None,
+        governance_gate: Optional["GovernanceGate"] = None,
+    ):
+        super().__init__(governance_gate=governance_gate)
         self._by_pypi_name: Dict[str, str] = {}  # pypi_name -> daid
-        self._lock = threading.Lock()
 
         self._base_path = base_path or Path.home() / ".keri-sec" / "packages"
         self._base_path.mkdir(parents=True, exist_ok=True)
 
         # Load existing packages
         self._load_packages()
+
+    # -- Base class hooks --
+
+    def _resolve_extra(self, identifier: str) -> Optional[PackageDAID]:
+        if identifier in self._by_pypi_name:
+            daid = self._by_pypi_name[identifier]
+            return self._entities.get(daid)
+        return None
+
+    def _apply_deprecation(self, obj, reason, successor, deadline):
+        obj.status = PackageStatus.DEPRECATED
+        obj.deprecation = DeprecationNotice(
+            reason=reason,
+            successor_daid=successor,
+            deadline=deadline,
+        )
 
     def _load_packages(self) -> None:
         """Load packages from disk."""
@@ -246,7 +264,7 @@ class PackageDAIDRegistry:
                     current_version_index=data.get("current_version_index", len(versions) - 1),
                 )
 
-                self._packages[pkg.daid] = pkg
+                self._entities[pkg.daid] = pkg
                 self._by_name[pkg.name] = pkg.daid
                 if pkg.pypi_name:
                     self._by_pypi_name[pkg.pypi_name] = pkg.daid
@@ -311,6 +329,8 @@ class PackageDAIDRegistry:
         Returns:
             Registered PackageDAID
         """
+        self._enforce(Operation.REGISTER, issuer_hab=issuer_hab)
+
         pypi_name = pypi_name or name
 
         # Compute DAID from inception data
@@ -329,46 +349,13 @@ class PackageDAIDRegistry:
             repository_url=repository_url,
         )
 
+        self._store(daid, name, pkg)
         with self._lock:
-            self._packages[daid] = pkg
-            self._by_name[name] = daid
             self._by_pypi_name[pypi_name] = daid
             self._save_package(pkg)
 
         logger.info(f"Registered package DAID: {name} -> {daid[:16]}...")
         return pkg
-
-    def resolve(self, identifier: str) -> Optional[PackageDAID]:
-        """
-        Resolve package by DAID, name, or PyPI name.
-
-        Args:
-            identifier: DAID prefix, package name, or PyPI name
-
-        Returns:
-            PackageDAID or None if not found
-        """
-        with self._lock:
-            # Try exact DAID match
-            if identifier in self._packages:
-                return self._packages[identifier]
-
-            # Try DAID prefix match
-            for daid, pkg in self._packages.items():
-                if daid.startswith(identifier):
-                    return pkg
-
-            # Try name lookup
-            if identifier in self._by_name:
-                daid = self._by_name[identifier]
-                return self._packages.get(daid)
-
-            # Try PyPI name lookup
-            if identifier in self._by_pypi_name:
-                daid = self._by_pypi_name[identifier]
-                return self._packages.get(daid)
-
-        return None
 
     def add_version(
         self,
@@ -398,6 +385,8 @@ class PackageDAIDRegistry:
         Raises:
             ValueError: If package not found or unauthorized
         """
+        self._enforce(Operation.ROTATE, issuer_hab=issuer_hab)
+
         pkg = self.resolve(daid)
         if pkg is None:
             raise ValueError(f"Package not found: {daid}")
@@ -515,30 +504,14 @@ class PackageDAIDRegistry:
         deadline: Optional[str] = None,
         issuer_hab: Any = None,
     ) -> None:
-        """
-        Deprecate a package.
+        """Deprecate a package."""
+        super().deprecate(daid, reason, successor=successor_daid, deadline=deadline, issuer_hab=issuer_hab)
 
-        Args:
-            daid: Package DAID
-            reason: Deprecation reason
-            successor_daid: DAID of replacement package
-            deadline: Migration deadline (ISO format)
-            issuer_hab: Issuer for attestation
-        """
+        # Persist to disk
         pkg = self.resolve(daid)
-        if pkg is None:
-            raise ValueError(f"Package not found: {daid}")
-
-        with self._lock:
-            pkg.status = PackageStatus.DEPRECATED
-            pkg.deprecation = DeprecationNotice(
-                reason=reason,
-                successor_daid=successor_daid,
-                deadline=deadline,
-            )
-            self._save_package(pkg)
-
-        logger.warning(f"Deprecated package: {pkg.name} - {reason}")
+        if pkg:
+            with self._lock:
+                self._save_package(pkg)
 
     def mark_hijacked(
         self,
@@ -556,6 +529,8 @@ class PackageDAIDRegistry:
             safe_versions: List of versions known to be safe
             issuer_hab: Issuer for attestation
         """
+        self._enforce(Operation.REVOKE, issuer_hab=issuer_hab)
+
         pkg = self.resolve(daid)
         if pkg is None:
             raise ValueError(f"Package not found: {daid}")
@@ -579,11 +554,10 @@ class PackageDAIDRegistry:
 
     def list_packages(self, status: Optional[PackageStatus] = None) -> List[PackageDAID]:
         """List all packages, optionally filtered by status."""
-        with self._lock:
-            packages = list(self._packages.values())
-            if status:
-                packages = [p for p in packages if p.status == status]
-            return packages
+        packages = self.list_all()
+        if status:
+            packages = [p for p in packages if p.status == status]
+        return packages
 
     def yank_version(
         self,
@@ -622,12 +596,22 @@ _registry: Optional[PackageDAIDRegistry] = None
 _registry_lock = threading.Lock()
 
 
-def get_package_daid_registry(base_path: Optional[Path] = None) -> PackageDAIDRegistry:
-    """Get the package DAID registry singleton."""
+def get_package_daid_registry(
+    base_path: Optional[Path] = None,
+    governance_gate: Optional["GovernanceGate"] = None,
+) -> PackageDAIDRegistry:
+    """Get the package DAID registry singleton.
+
+    Args:
+        base_path: Path for persisting registry.
+        governance_gate: Optional gate to enable cardinal rule enforcement.
+    """
     global _registry
     with _registry_lock:
         if _registry is None:
             _registry = PackageDAIDRegistry(base_path=base_path)
+            if governance_gate is not None:
+                _registry.set_governance_gate(governance_gate)
         return _registry
 
 
