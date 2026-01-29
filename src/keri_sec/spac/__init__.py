@@ -61,6 +61,23 @@ from keri_sec.spac.oobi_exchange import (
     create_oobi_exchanger,
 )
 
+# SPAC Policy (Composed Rules)
+from keri_sec.spac.policy import (
+    SPACPolicy,
+    DisclosureClause,
+    ChainLinkClause,
+    ESSRClause,
+    ORIClause,
+    ORIPartitionMode,
+    PresentationCheck,
+    PolicyCompositionError,
+    compose_policies,
+    SPAC_OPEN,
+    SPAC_CHAIN_LINK,
+    SPAC_CONFIDENTIAL,
+    SPAC_MAXIMUM,
+)
+
 __all__ = [
     # ESSR (Week 7)
     "ESSRMessage",
@@ -92,6 +109,20 @@ __all__ = [
     "EndpointConfig",
     "EndpointRegistry",
     "create_oobi_exchanger",
+    # SPAC Policy (Composed Rules)
+    "SPACPolicy",
+    "DisclosureClause",
+    "ChainLinkClause",
+    "ESSRClause",
+    "ORIClause",
+    "ORIPartitionMode",
+    "PresentationCheck",
+    "PolicyCompositionError",
+    "compose_policies",
+    "SPAC_OPEN",
+    "SPAC_CHAIN_LINK",
+    "SPAC_CONFIDENTIAL",
+    "SPAC_MAXIMUM",
 ]
 
-__version__ = "0.3.0"  # Week 9
+__version__ = "0.4.0"  # SPAC Policy
