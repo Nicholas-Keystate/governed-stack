@@ -254,6 +254,52 @@ from keri_sec.packages import (
     reset_package_daid_registry,
 )
 
+# Cardinal RuleSet GAIDs (Governed Policy Matrix)
+from keri_sec.governance import (
+    CardinalRuleSetStatus,
+    CardinalRuleSetGovernanceRules,
+    CellChange,
+    CardinalRuleSetVersion,
+    CardinalRuleSetGAID,
+    CardinalRuleSetRegistry,
+    GovernedCheckResult,
+    GovernedCardinalChecker,
+    serialize_ruleset,
+    compute_matrix_said,
+    compute_diff,
+    get_cardinal_ruleset_registry,
+    reset_cardinal_ruleset_registry,
+)
+
+# Runtime GAIDs (Governed Runtime Environments)
+from keri_sec.runtime import (
+    # Manifest
+    RuntimeManifest,
+    capture_current_manifest,
+    load_manifest,
+    save_manifest,
+    # GAID Registry
+    RuntimeGAID,
+    RuntimeGAIDRegistry,
+    RuntimeStatus,
+    RuntimeVersion,
+    GovernanceRules,
+    DeprecationNotice as RuntimeDeprecationNotice,
+    VerificationResult as RuntimeVerificationResult,
+    get_runtime_gaid_registry,
+    reset_runtime_gaid_registry,
+    # Checker
+    RuntimeChecker,
+    CheckResult as RuntimeCheckResult,
+    CheckViolation,
+    ViolationSeverity,
+    # Resolver
+    RuntimeResolver,
+    DependencyGraph,
+    ResolvedDependency,
+    AvailabilityResult,
+)
+
 
 def tel_available() -> bool:
     """Check if TEL anchoring is available."""
@@ -377,4 +423,40 @@ __all__ = [
     "PackageVerificationResult",
     "get_package_daid_registry",
     "reset_package_daid_registry",
+    # Cardinal RuleSet GAIDs (Governed Policy Matrix)
+    "CardinalRuleSetStatus",
+    "CardinalRuleSetGovernanceRules",
+    "CellChange",
+    "CardinalRuleSetVersion",
+    "CardinalRuleSetGAID",
+    "CardinalRuleSetRegistry",
+    "GovernedCheckResult",
+    "GovernedCardinalChecker",
+    "serialize_ruleset",
+    "compute_matrix_said",
+    "compute_diff",
+    "get_cardinal_ruleset_registry",
+    "reset_cardinal_ruleset_registry",
+    # Runtime GAIDs (Governed Runtime Environments)
+    "RuntimeManifest",
+    "capture_current_manifest",
+    "load_manifest",
+    "save_manifest",
+    "RuntimeGAID",
+    "RuntimeGAIDRegistry",
+    "RuntimeStatus",
+    "RuntimeVersion",
+    "GovernanceRules",
+    "RuntimeDeprecationNotice",
+    "RuntimeVerificationResult",
+    "get_runtime_gaid_registry",
+    "reset_runtime_gaid_registry",
+    "RuntimeChecker",
+    "RuntimeCheckResult",
+    "CheckViolation",
+    "ViolationSeverity",
+    "RuntimeResolver",
+    "DependencyGraph",
+    "ResolvedDependency",
+    "AvailabilityResult",
 ]
