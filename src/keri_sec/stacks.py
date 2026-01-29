@@ -60,3 +60,9 @@ AI_ORCHESTRATOR_STACK = {
     "tiktoken": ">=0.5.0",
     "numpy": ">=1.24.0",
 }
+
+# KERIbot proxy daemon stack (KERI + WebSocket proxy)
+KERIBOT_STACK = {
+    **KERI_PRODUCTION_STACK,
+    "wsproto": ">=1.2.0",
+}
